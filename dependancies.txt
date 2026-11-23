@@ -1,0 +1,3 @@
+https://github.com/DevStuffzz/glm
+https://github.com/DevStuffzz/glfw
+https://github.com/DevStuffzz/glad

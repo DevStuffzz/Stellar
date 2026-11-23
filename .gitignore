@@ -1,0 +1,10 @@
+﻿# Build output
+bin/
+bin-int/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln

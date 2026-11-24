@@ -6,6 +6,7 @@ namespace Stellar {
     {
         glm::mat4 ViewProjection = glm::mat4(1.0f);
         Ref<Shader> DefaultShader;
+        Ref<Texture2D> WhiteTexture;
     };
 
     static RendererData* s_Data = nullptr;
@@ -19,6 +20,8 @@ namespace Stellar {
 
         uniform mat4 u_ViewProjection;
         uniform mat4 u_Transform;
+        uniform vec2 u_UVOffset;
+        uniform vec2 u_UVScale;
 
         out vec4 v_Color;
         out vec2 v_TexCoord;
@@ -26,13 +29,14 @@ namespace Stellar {
         void main()
         {
             v_Color = a_Color;
-            v_TexCoord = a_TexCoord;
+            v_TexCoord = u_UVOffset + a_TexCoord * u_UVScale;
             gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 0.0, 1.0);
         }
     )";
 
     static const char* s_DefaultFragmentSrc = R"(
         #version 450 core
+        #extension GL_ARB_bindless_texture : require
 
         layout(location = 0) out vec4 o_Color;
 
@@ -40,10 +44,11 @@ namespace Stellar {
         in vec2 v_TexCoord;
 
         uniform vec4 u_Color;
+        layout(bindless_sampler) uniform sampler2D u_Texture;
 
         void main()
         {
-            o_Color = v_Color * u_Color;
+            o_Color = texture(u_Texture, v_TexCoord) * v_Color * u_Color;
         }
     )";
 
@@ -53,6 +58,11 @@ namespace Stellar {
 
         s_Data = new RendererData();
         s_Data->DefaultShader = Shader::Create("Default2D", s_DefaultVertexSrc, s_DefaultFragmentSrc);
+
+        // 1x1 white texture so untextured draws share the textured shader path.
+        s_Data->WhiteTexture = Texture2D::Create(1, 1);
+        uint32_t whitePixel = 0xffffffff;
+        s_Data->WhiteTexture->SetData(&whitePixel, sizeof(whitePixel));
     }
 
     void Renderer::Shutdown()
@@ -79,8 +89,16 @@ namespace Stellar {
 
     void Renderer::Submit(const Ref<Mesh>& mesh, const glm::mat4& transform, const glm::vec4& color)
     {
+        Submit(mesh, s_Data->WhiteTexture, transform, color);
+    }
+
+    void Renderer::Submit(const Ref<Mesh>& mesh, const Ref<Texture2D>& texture, const glm::mat4& transform, const glm::vec4& tint, const glm::vec2& uvOffset, const glm::vec2& uvScale)
+    {
         s_Data->DefaultShader->Bind();
-        s_Data->DefaultShader->SetFloat4("u_Color", color);
+        s_Data->DefaultShader->SetFloat4("u_Color", tint);
+        s_Data->DefaultShader->SetTextureHandle("u_Texture", texture->GetHandle());
+        s_Data->DefaultShader->SetFloat2("u_UVOffset", uvOffset);
+        s_Data->DefaultShader->SetFloat2("u_UVScale", uvScale);
         Submit(s_Data->DefaultShader, mesh, transform);
     }
 

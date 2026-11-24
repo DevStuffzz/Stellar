@@ -5,6 +5,7 @@
 #include "Stellar/Renderer/OrthographicCamera.h"
 #include "Stellar/Renderer/RenderCommand.h"
 #include "Stellar/Renderer/Shader.h"
+#include "Stellar/Renderer/Texture.h"
 
 #include <glm/glm.hpp>
 
@@ -23,6 +24,10 @@ namespace Stellar {
 
         // Draws with the built-in 2D shader; color tints the mesh's vertex colors.
         static void Submit(const Ref<Mesh>& mesh, const glm::mat4& transform = glm::mat4(1.0f), const glm::vec4& color = glm::vec4(1.0f));
+
+        // Draws with the built-in 2D shader sampling the texture through its bindless handle.
+        // uvOffset/uvScale remap the mesh's texcoords (e.g. onto a TextureAtlas sub-texture).
+        static void Submit(const Ref<Mesh>& mesh, const Ref<Texture2D>& texture, const glm::mat4& transform = glm::mat4(1.0f), const glm::vec4& tint = glm::vec4(1.0f), const glm::vec2& uvOffset = glm::vec2(0.0f), const glm::vec2& uvScale = glm::vec2(1.0f));
 
         // Draws with a custom shader. Sets u_ViewProjection and u_Transform.
         static void Submit(const Ref<Shader>& shader, const Ref<Mesh>& mesh, const glm::mat4& transform = glm::mat4(1.0f));

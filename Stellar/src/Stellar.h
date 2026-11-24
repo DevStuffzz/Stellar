@@ -15,6 +15,12 @@
 #include "Stellar/Renderer/RenderCommand.h"
 #include "Stellar/Renderer/Mesh.h"
 #include "Stellar/Renderer/Shader.h"
+#include "Stellar/Renderer/Texture.h"
+#include "Stellar/Renderer/TextureAtlas.h"
 #include "Stellar/Renderer/Buffer.h"
 #include "Stellar/Renderer/VertexArray.h"
 #include "Stellar/Renderer/OrthographicCamera.h"
+
+#include "Stellar/Scene/Scene.h"
+#include "Stellar/Scene/Entity.h"
+#include "Stellar/Scene/Components.h"

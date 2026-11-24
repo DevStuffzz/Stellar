@@ -1,5 +1,7 @@
 ﻿#include "Platform/OpenGL/OpenGLContext.h"
 
+#include "Platform/OpenGL/OpenGLBindlessTexture.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -21,6 +23,10 @@ namespace Stellar {
             reinterpret_cast<const char*>(glGetString(GL_VENDOR)),
             reinterpret_cast<const char*>(glGetString(GL_RENDERER)),
             reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+
+        bool bindless = GLBindless::Init();
+        std::printf("  Bindless textures (GL_ARB_bindless_texture): %s\n", bindless ? "supported" : "NOT supported");
+        ST_ASSERT(bindless, "GL_ARB_bindless_texture is required by the Stellar renderer!");
     }
 
     void OpenGLContext::SwapBuffers()

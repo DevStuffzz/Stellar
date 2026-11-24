@@ -1,5 +1,7 @@
 ﻿#include "Platform/OpenGL/OpenGLShader.h"
 
+#include "Platform/OpenGL/OpenGLBindlessTexture.h"
+
 #include <vector>
 
 #include <glad/glad.h>
@@ -126,6 +128,15 @@ namespace Stellar {
     void OpenGLShader::SetMat4(const std::string& name, const glm::mat4& value)
     {
         glProgramUniformMatrix4fv(m_RendererID, GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
+    }
+
+    void OpenGLShader::SetTextureHandle(const std::string& name, uint64_t handle)
+    {
+        ST_ASSERT(GLBindless::IsSupported(), "GL_ARB_bindless_texture is not supported by this driver!");
+        if (!GLBindless::IsSupported())
+            return;
+
+        GLBindless::ProgramUniformHandleui64ARB(m_RendererID, GetUniformLocation(name), handle);
     }
 
 }

@@ -18,16 +18,9 @@
     private:
         void CreateSceneEntities();
 
-        void UpdateTilemapMesh();
-
     private:
         Stellar::Ref<Stellar::Scene> m_Scene;
-        Stellar::Ref<Stellar::Tilemap> m_Tilemap;
-        Stellar::Ref<Stellar::TextureAtlas> m_BlocksAtlas;
-        Stellar::Entity m_TilemapEntity;
         Stellar::Entity m_CameraEntity;
-        Stellar::Tilemap::Bounds m_VisibleTileBounds;
-        bool m_HasVisibleTileBounds = false;
         Stellar::Entity m_Player;
     };
 

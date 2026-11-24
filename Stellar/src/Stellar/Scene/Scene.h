@@ -35,7 +35,7 @@ namespace Stellar {
 
         const OrthographicCamera& GetPrimaryCamera() const;
 
-        // Draws every entity with Transform + SpriteRenderer in creation order.
+        // Draws tilemaps and sprites in entity creation order.
         void OnRender();
 
         Registry& GetRegistry() { return m_Registry; }

@@ -12,6 +12,64 @@
 
 namespace Stellar {
 
+    const Ref<Mesh>& TilemapRendererComponent::GetMesh(const OrthographicCamera& camera, const glm::mat4& transform)
+    {
+        if (!Map || !Atlas || !Atlas->GetTexture())
+            throw std::invalid_argument("Tilemap renderer requires a map and a textured atlas");
+        if (!std::isfinite(TileSize) || TileSize <= 0.0f)
+            throw std::invalid_argument("Tilemap renderer tile size must be positive and finite");
+        const float determinant = glm::determinant(camera.GetViewProjectionMatrix() * transform);
+        if (!std::isfinite(determinant) || determinant == 0.0f)
+            throw std::invalid_argument("Tilemap renderer requires an invertible camera and transform");
+
+        const auto bounds = Map->GetVisibleBounds(camera, TileSize, transform);
+        bool changed = !m_HasCachedMesh || Map != m_CachedMap ||
+            !(bounds == m_CachedBounds) || TileSize != m_CachedTileSize ||
+            Map->GetWidth() != m_CachedMapWidth || Map->GetHeight() != m_CachedMapHeight ||
+            Atlas->GetTextureWidth() != m_CachedTextureWidth ||
+            Atlas->GetTextureHeight() != m_CachedTextureHeight ||
+            Atlas->GetCellWidth() != m_CachedCellWidth || Atlas->GetCellHeight() != m_CachedCellHeight;
+
+        size_t index = 0;
+        for (uint32_t y = bounds.MinY; y < bounds.MaxY; ++y)
+        {
+            for (uint32_t x = bounds.MinX; x < bounds.MaxX; ++x)
+            {
+                const int tile = Map->GetTile(x, y);
+                if (tile < Tilemap::EmptyTile ||
+                    (tile != Tilemap::EmptyTile && static_cast<uint32_t>(tile) >= Atlas->GetSubTextureCount()))
+                    throw std::invalid_argument("Tilemap contains a tile outside the atlas");
+                if (!changed && tile != m_CachedTiles[index])
+                    changed = true;
+                ++index;
+            }
+        }
+
+        if (changed)
+        {
+            std::vector<int> tiles;
+            tiles.reserve(index);
+            for (uint32_t y = bounds.MinY; y < bounds.MaxY; ++y)
+                for (uint32_t x = bounds.MinX; x < bounds.MaxX; ++x)
+                    tiles.push_back(Map->GetTile(x, y));
+
+            Ref<Mesh> mesh = Map->GenerateMesh(*Atlas, bounds, TileSize);
+            m_Mesh = std::move(mesh);
+            m_CachedMap = Map;
+            m_CachedBounds = bounds;
+            m_CachedTiles = std::move(tiles);
+            m_CachedTileSize = TileSize;
+            m_CachedMapWidth = Map->GetWidth();
+            m_CachedMapHeight = Map->GetHeight();
+            m_CachedTextureWidth = Atlas->GetTextureWidth();
+            m_CachedTextureHeight = Atlas->GetTextureHeight();
+            m_CachedCellWidth = Atlas->GetCellWidth();
+            m_CachedCellHeight = Atlas->GetCellHeight();
+            m_HasCachedMesh = true;
+        }
+        return m_Mesh;
+    }
+
     namespace {
         struct CallbackScope
         {
@@ -324,9 +382,21 @@ namespace Stellar {
 
         Renderer::BeginScene(*m_MainCamera);
 
-        m_Registry.Each<TransformComponent, SpriteRendererComponent>(
-            [this](EntityID, TransformComponent& transform, SpriteRendererComponent& sprite)
+        m_Registry.Each<TransformComponent>(
+            [this](EntityID entity, TransformComponent& transform)
             {
+                const glm::mat4 matrix = transform.GetTransform();
+                if (auto* tilemap = m_Registry.TryGet<TilemapRendererComponent>(entity))
+                {
+                    const Ref<Mesh>& mesh = tilemap->GetMesh(*m_MainCamera, matrix);
+                    if (mesh)
+                        Renderer::Submit(mesh, tilemap->Atlas->GetTexture(), matrix, tilemap->Color);
+                }
+
+                auto* spriteComponent = m_Registry.TryGet<SpriteRendererComponent>(entity);
+                if (!spriteComponent)
+                    return;
+                auto& sprite = *spriteComponent;
                 const Ref<Mesh>& mesh = sprite.Mesh ? sprite.Mesh : m_QuadMesh;
                 if (sprite.Texture)
                 {
@@ -334,10 +404,10 @@ namespace Stellar {
                     glm::vec2 uvScale = sprite.UVScale;
                     if (sprite.FlipX) { uvOffset.x += uvScale.x; uvScale.x = -uvScale.x; }
                     if (sprite.FlipY) { uvOffset.y += uvScale.y; uvScale.y = -uvScale.y; }
-                    Renderer::Submit(mesh, sprite.Texture, transform.GetTransform(), sprite.Color, uvOffset, uvScale);
+                    Renderer::Submit(mesh, sprite.Texture, matrix, sprite.Color, uvOffset, uvScale);
                 }
                 else
-                    Renderer::Submit(mesh, transform.GetTransform(), sprite.Color);
+                    Renderer::Submit(mesh, matrix, sprite.Color);
             });
 
         Renderer::EndScene();

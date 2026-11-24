@@ -34,6 +34,8 @@ namespace Stellar {
         uint32_t GetColumns() const { return m_Columns; }
         uint32_t GetRows() const { return m_Rows; }
         uint32_t GetSubTextureCount() const { return m_Columns * m_Rows; }
+        uint32_t GetTextureWidth() const { return m_TextureWidth; }
+        uint32_t GetTextureHeight() const { return m_TextureHeight; }
         uint32_t GetCellWidth() const { return m_CellWidth; }
         uint32_t GetCellHeight() const { return m_CellHeight; }
         const Ref<Texture2D>& GetTexture() const { return m_Texture; }

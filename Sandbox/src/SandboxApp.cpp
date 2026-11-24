@@ -28,7 +28,7 @@ SandboxApp::~SandboxApp()
 void SandboxApp::CreateSceneEntities()
 {
 	Stellar::Ref<Stellar::Texture2D> blocks = Stellar::Texture2D::Create("assets/textures/atlas/blocks.png");
-	m_BlocksAtlas = Stellar::CreateRef<Stellar::TextureAtlas>(blocks, 16, 16);
+	auto blocksAtlas = Stellar::CreateRef<Stellar::TextureAtlas>(blocks, 16, 16);
 
 	const uint32_t mapWidth = 256;
 	const uint32_t mapHeight = 256;
@@ -39,13 +39,13 @@ void SandboxApp::CreateSceneEntities()
 	int sand = 16 * 11;
 	int water = 12 * 16 + 14;
 
-	m_Tilemap = Stellar::CreateRef<Stellar::Tilemap>(
+	auto tilemap = Stellar::CreateRef<Stellar::Tilemap>(
 		mapWidth, mapHeight
 	);
 
-	m_Tilemap->SetTileCollision(water, true);
-	m_Tilemap->SetTileCollision(stone, true);
-	m_Tilemap->Clear(grass);
+	tilemap->SetTileCollision(water, true);
+	tilemap->SetTileCollision(stone, true);
+	tilemap->Clear(grass);
 
 	std::mt19937 rng(std::random_device{}());
 	std::uniform_real_distribution<float> dist(0.0f, 10000.0f);
@@ -74,16 +74,20 @@ void SandboxApp::CreateSceneEntities()
 			else if (elevation > 0.28f)
 				tile = stone;
 
-			m_Tilemap->SetTile(x, y, tile);
+			tilemap->SetTile(x, y, tile);
 		}
 	}
 
 	// Keep the player's spawn and its immediate surroundings walkable.
 	for (uint32_t y = mapHeight / 2 - 2; y < mapHeight / 2 + 2; y++)
 		for (uint32_t x = mapWidth / 2 - 2; x < mapWidth / 2 + 2; x++)
-			m_Tilemap->SetTile(x, y, grass);
+			tilemap->SetTile(x, y, grass);
 
-	m_TilemapEntity = m_Scene->CreateEntity("Tilemap");
+	auto tilemapEntity = m_Scene->CreateEntity("Tilemap");
+	auto& tilemapRenderer = tilemapEntity.AddComponent<Stellar::TilemapRendererComponent>();
+	tilemapRenderer.Map = tilemap;
+	tilemapRenderer.Atlas = blocksAtlas;
+	tilemapRenderer.TileSize = tileSize;
 
 	// Player: created last so it draws on top; animated from the characters atlas.
 	Stellar::Ref<Stellar::Texture2D> characters = Stellar::Texture2D::Create("assets/textures/atlas/characters.png");
@@ -113,7 +117,7 @@ void SandboxApp::CreateSceneEntities()
 	m_Player.AddComponent<Stellar::SpriteAnimatorComponent>();
 
 	auto& collider = m_Player.AddComponent<Stellar::TilemapColliderComponent>();
-	collider.Map = m_Tilemap;
+	collider.Map = tilemap;
 	collider.TileSize = tileSize;
 	collider.HalfSize = { 0.075f, 0.06f };
 
@@ -146,7 +150,6 @@ void SandboxApp::OnUpdate(Stellar::Timestep ts)
 		Close();
 
 	m_Scene->OnUpdate(ts);
-	UpdateTilemapMesh();
 
 	Stellar::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.12f, 1.0f });
 	Stellar::RenderCommand::Clear();
@@ -162,29 +165,6 @@ void SandboxApp::OnWindowResize(uint32_t width, uint32_t height)
 void SandboxApp::OnMouseScroll(float xOffset, float yOffset)
 {
 	m_Scene->OnMouseScroll(xOffset, yOffset);
-}
-
-void SandboxApp::UpdateTilemapMesh()
-{
-	const auto& transform = m_TilemapEntity.GetComponent<Stellar::TransformComponent>();
-	const auto bounds = m_Tilemap->GetVisibleBounds(m_Scene->GetPrimaryCamera(), tileSize, transform.GetTransform());
-	if (m_HasVisibleTileBounds && bounds == m_VisibleTileBounds)
-		return;
-
-	auto mesh = m_Tilemap->GenerateMesh(*m_BlocksAtlas, bounds, tileSize);
-	if (mesh)
-	{
-		if (!m_TilemapEntity.HasComponent<Stellar::SpriteRendererComponent>())
-			m_TilemapEntity.AddComponent<Stellar::SpriteRendererComponent>();
-		auto& sprite = m_TilemapEntity.GetComponent<Stellar::SpriteRendererComponent>();
-		sprite.Mesh = mesh;
-		sprite.Texture = m_BlocksAtlas->GetTexture();
-	}
-	else if (m_TilemapEntity.HasComponent<Stellar::SpriteRendererComponent>())
-		m_TilemapEntity.RemoveComponent<Stellar::SpriteRendererComponent>();
-
-	m_VisibleTileBounds = bounds;
-	m_HasVisibleTileBounds = true;
 }
 
 Stellar::Application* Stellar::CreateApplication()

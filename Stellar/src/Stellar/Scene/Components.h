@@ -13,6 +13,7 @@
 #include <string>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -60,6 +61,28 @@ namespace Stellar {
             UVOffset = atlas.GetUVOffset(id);
             UVScale = atlas.GetUVScale(id);
         }
+    };
+
+    // Renders the visible portion of a tilemap using its entity's transform.
+    struct ST_API TilemapRendererComponent
+    {
+        Ref<Tilemap> Map;
+        Ref<TextureAtlas> Atlas;
+        float TileSize = 1.0f;
+        glm::vec4 Color = glm::vec4(1.0f);
+
+        const Ref<Mesh>& GetMesh(const OrthographicCamera& camera, const glm::mat4& transform);
+
+    private:
+        Ref<Mesh> m_Mesh;
+        Ref<Tilemap> m_CachedMap;
+        Tilemap::Bounds m_CachedBounds;
+        std::vector<int> m_CachedTiles;
+        float m_CachedTileSize = 0.0f;
+        uint32_t m_CachedMapWidth = 0, m_CachedMapHeight = 0;
+        uint32_t m_CachedTextureWidth = 0, m_CachedTextureHeight = 0;
+        uint32_t m_CachedCellWidth = 0, m_CachedCellHeight = 0;
+        bool m_HasCachedMesh = false;
     };
 
     // Plays a SpriteAnimation onto the entity's SpriteRendererComponent;

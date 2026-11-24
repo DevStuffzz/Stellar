@@ -10,4 +10,6 @@ A 2D Game Engine written in C++
 - `Stellar/src/Stellar` - platform-agnostic engine API (pure virtual `Window`, `Input`, `GraphicsContext`, `RendererAPI`, `VertexBuffer`, `IndexBuffer`, `VertexArray`, `Shader`) plus `Mesh`, `OrthographicCamera`, and `Renderer`.
 - `Stellar/src/Platform/Windows` - `WindowsWindow` and `WindowsInput` (GLFW).
 - `Stellar/src/Platform/OpenGL` - OpenGL implementations of the renderer interfaces.
-- `Sandbox` - example client application (WASD/QE moves/rotates the quad, arrow keys pan the camera, hold LMB to tint, Esc quits).
+- `Sandbox` - example client application (WASD moves the player, mouse wheel zooms the camera, Esc quits).
+
+Tilemap collision is opt-in: mark solid atlas IDs with `SetTileCollision(id, true)` and add a `TilemapColliderComponent` to a moving entity. Collision uses an axis-aligned box and an unrotated, unscaled map centered at `MapCenter`; outside the map is non-solid.

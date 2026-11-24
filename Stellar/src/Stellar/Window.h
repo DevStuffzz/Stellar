@@ -24,6 +24,7 @@ namespace Stellar {
     {
     public:
         using ResizeCallbackFn = std::function<void(uint32_t width, uint32_t height)>;
+        using ScrollCallbackFn = std::function<void(float xOffset, float yOffset)>;
 
         virtual ~Window() = default;
 
@@ -39,6 +40,7 @@ namespace Stellar {
         virtual bool IsVSync() const = 0;
 
         virtual void SetResizeCallback(const ResizeCallbackFn& callback) = 0;
+        virtual void SetScrollCallback(const ScrollCallbackFn& callback) = 0;
 
         // Seconds since the window system was initialized.
         virtual double GetTime() const = 0;

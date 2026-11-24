@@ -6,6 +6,7 @@
 #include "Stellar/Renderer/Texture.h"
 #include "Stellar/Renderer/TextureAtlas.h"
 #include "Stellar/Renderer/SpriteAnimation.h"
+#include "Stellar/Scene/Tilemap.h"
 
 #include <string>
 
@@ -89,6 +90,15 @@ namespace Stellar {
                 frame = frame < Animation.Frames.size() ? frame : Animation.Frames.size() - 1;
             return Animation.Frames[frame];
         }
+    };
+
+    // Optional axis-aligned tilemap collision for a moving entity.
+    struct TilemapColliderComponent
+    {
+        Ref<Tilemap> Map;
+        float TileSize = 1.0f;
+        glm::vec2 MapCenter = { 0.0f, 0.0f };
+        glm::vec2 HalfSize = { 0.5f, 0.5f };
     };
 
     // Top-down character controller processed by Scene::OnUpdate: moves the

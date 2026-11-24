@@ -25,6 +25,7 @@ namespace Stellar {
     protected:
         virtual void OnUpdate(Timestep ts) {}
         virtual void OnWindowResize(uint32_t width, uint32_t height) {}
+        virtual void OnMouseScroll(float xOffset, float yOffset) {}
 
     private:
         Scope<Window> m_Window;

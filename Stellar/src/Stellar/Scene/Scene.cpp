@@ -39,7 +39,15 @@ namespace Stellar {
 
                 if (moving)
                 {
-                    transform.Position += glm::normalize(move) * movement.MoveSpeed * static_cast<float>(ts);
+                    const glm::vec2 displacement = glm::normalize(move) * movement.MoveSpeed * static_cast<float>(ts);
+                    if (auto* collider = m_Registry.TryGet<TilemapColliderComponent>(entity))
+                    {
+                        ST_ASSERT(collider->Map, "Tilemap collider requires a map!");
+                        transform.Position = collider->Map->MoveWithCollisions(transform.Position, collider->HalfSize,
+                            displacement, collider->TileSize, collider->MapCenter);
+                    }
+                    else
+                        transform.Position += displacement;
 
                     // The dominant axis picks the facing.
                     if (glm::abs(move.x) >= glm::abs(move.y))

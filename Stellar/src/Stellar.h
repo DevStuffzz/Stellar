@@ -27,3 +27,7 @@
 #include "Stellar/Scene/Entity.h"
 #include "Stellar/Scene/Components.h"
 #include "Stellar/Scene/Tilemap.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/noise.hpp>
+#include <random>

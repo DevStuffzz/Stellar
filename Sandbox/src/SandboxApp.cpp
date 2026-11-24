@@ -1,4 +1,6 @@
 ﻿#include "SandboxApp.h"
+#include <algorithm>
+#include <cmath>
 #include <random>
 
 #include <vector>
@@ -36,16 +38,49 @@
         int sand = 16 * 11;
         int water = 12 * 16 + 14;
 
-        std::vector<int> block_ids = { grass, stone, path, sand, water };
+        m_Tilemap = Stellar::CreateRef<Stellar::Tilemap>(
+            mapWidth, mapHeight
+        );
 
-        m_Tilemap = Stellar::CreateRef<Stellar::Tilemap>(mapWidth, mapHeight);
-        for (uint32_t row = 0; row < mapHeight; row++)
+        m_Tilemap->SetTileCollision(water, true);
+        m_Tilemap->SetTileCollision(stone, true);
+        m_Tilemap->Clear(grass);
+
+        std::mt19937 rng(std::random_device{}());
+        std::uniform_real_distribution<float> dist(0.0f, 10000.0f);
+
+        glm::vec2 offset(dist(rng), dist(rng));
+
+        float scale = 0.045f;
+
+        for (int y = 0; y < mapHeight; y++)
         {
-            for (uint32_t x = 0; x < mapWidth; x++)
+            for (int x = 0; x < mapWidth; x++)
             {
-                m_Tilemap->SetTile(x, row, Stellar::GetRandomInt(block_ids));
+                glm::vec2 pos = glm::vec2(x, y) * scale + offset;
+
+                float elevation =
+                    glm::perlin(pos) * 0.65f +
+                    glm::perlin(pos * 2.0f) * 0.25f +
+                    glm::perlin(pos * 4.0f) * 0.10f;
+
+                uint16_t tile = grass;
+
+                if (elevation < -0.20f)
+                    tile = water;
+                else if (elevation < -0.12f)
+                    tile = sand;
+                else if (elevation > 0.28f)
+                    tile = stone;
+
+                m_Tilemap->SetTile(x, y, tile);
             }
         }
+
+        // Keep the player's spawn and its immediate surroundings walkable.
+        for (uint32_t y = mapHeight / 2 - 2; y < mapHeight / 2 + 2; y++)
+            for (uint32_t x = mapWidth / 2 - 2; x < mapWidth / 2 + 2; x++)
+                m_Tilemap->SetTile(x, y, grass);
 
         m_TilemapEntity = m_Scene->CreateEntity("Tilemap");
 
@@ -76,6 +111,11 @@
     m_Player.AddComponent<Stellar::SpriteRendererComponent>();
     m_Player.AddComponent<Stellar::SpriteAnimatorComponent>();
 
+    auto& collider = m_Player.AddComponent<Stellar::TilemapColliderComponent>();
+    collider.Map = m_Tilemap;
+    collider.TileSize = tileSize;
+    collider.HalfSize = { 0.075f, 0.06f };
+
     auto& movement = m_Player.AddComponent<Stellar::TopDownMovementComponent>();
     movement.MoveSpeed = 1.5f;
     movement.WalkUp = walk(0);
@@ -105,6 +145,15 @@
     void SandboxApp::OnWindowResize(uint32_t width, uint32_t height)
     {
         UpdateCameraProjection(width, height);
+    }
+
+    void SandboxApp::OnMouseScroll(float xOffset, float yOffset)
+    {
+        m_ZoomLevel = std::clamp(m_ZoomLevel * std::pow(0.85f, yOffset), 0.25f, 8.0f);
+        const uint32_t width = GetWindow().GetWidth();
+        const uint32_t height = GetWindow().GetHeight();
+        if (width > 0 && height > 0)
+            UpdateCameraProjection(width, height);
     }
 
     void SandboxApp::UpdateCameraProjection(uint32_t width, uint32_t height)

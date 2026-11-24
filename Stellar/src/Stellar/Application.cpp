@@ -17,6 +17,10 @@ namespace Stellar {
             Renderer::OnWindowResize(width, height);
             OnWindowResize(width, height);
         });
+        m_Window->SetScrollCallback([this](float xOffset, float yOffset)
+        {
+            OnMouseScroll(xOffset, yOffset);
+        });
 
         Renderer::Init();
         m_LastFrameTime = m_Window->GetTime();

@@ -13,6 +13,7 @@
     protected:
         void OnUpdate(Stellar::Timestep ts) override;
         void OnWindowResize(uint32_t width, uint32_t height) override;
+        void OnMouseScroll(float xOffset, float yOffset) override;
 
     private:
         void CreateSceneEntities();

@@ -76,6 +76,13 @@ namespace Stellar {
             if (data.ResizeCallback && width > 0 && height > 0)
                 data.ResizeCallback(data.Width, data.Height);
         });
+
+        glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double xOffset, double yOffset)
+        {
+            WindowData& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+            if (data.ScrollCallback)
+                data.ScrollCallback(static_cast<float>(xOffset), static_cast<float>(yOffset));
+        });
     }
 
     void WindowsWindow::Shutdown()

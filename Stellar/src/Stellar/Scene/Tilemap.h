@@ -4,6 +4,7 @@
 #include "Stellar/Renderer/OrthographicCamera.h"
 #include "Stellar/Renderer/TextureAtlas.h"
 
+#include <unordered_set>
 #include <vector>
 
 namespace Stellar
@@ -31,6 +32,15 @@ namespace Stellar
         int GetTile(uint32_t x, uint32_t y) const;
         void SetTile(uint32_t x, uint32_t y, int tile);
 
+        // Collision is configured per atlas tile ID and defaults to false.
+        void SetTileCollision(int tile, bool solid);
+        bool IsTileSolid(int tile) const;
+
+        // Moves a world-space axis-aligned box, sliding along solid tiles.
+        // The map is centered at mapCenter; space outside the map is not solid.
+        glm::vec2 MoveWithCollisions(const glm::vec2& position, const glm::vec2& halfSize,
+            const glm::vec2& displacement, float tileSize, const glm::vec2& mapCenter = glm::vec2(0.0f)) const;
+
         // Clear() fills the map with EmptyTile.
         void Clear();
         void Clear(int tile);
@@ -54,5 +64,6 @@ namespace Stellar
 
         uint32_t m_Width, m_Height;
         std::vector<int> m_Tiles;
+        std::unordered_set<int> m_SolidTiles;
     };
 }

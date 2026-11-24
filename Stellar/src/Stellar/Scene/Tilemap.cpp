@@ -25,6 +25,74 @@ namespace Stellar
         m_Tiles[GetIndex(x, y)] = tile;
     }
 
+    void Tilemap::SetTileCollision(int tile, bool solid)
+    {
+        ST_ASSERT(tile >= 0, "Empty or negative tiles cannot be solid!");
+        if (solid)
+            m_SolidTiles.insert(tile);
+        else
+            m_SolidTiles.erase(tile);
+    }
+
+    bool Tilemap::IsTileSolid(int tile) const
+    {
+        return tile != EmptyTile && m_SolidTiles.count(tile) != 0;
+    }
+
+    glm::vec2 Tilemap::MoveWithCollisions(const glm::vec2& position, const glm::vec2& halfSize,
+        const glm::vec2& displacement, float tileSize, const glm::vec2& mapCenter) const
+    {
+        ST_ASSERT(tileSize > 0.0f, "Tile size must be positive!");
+        ST_ASSERT(halfSize.x > 0.0f && halfSize.y > 0.0f, "Collider half-size must be positive!");
+
+        const glm::vec2 origin = mapCenter - glm::vec2(
+            static_cast<float>(m_Width) * tileSize, static_cast<float>(m_Height) * tileSize) * 0.5f;
+        const auto clampIndex = [](double index, uint32_t limit) {
+            return static_cast<uint32_t>(std::clamp(index, 0.0, static_cast<double>(limit)));
+        };
+        glm::vec2 result = position;
+
+        for (int axis = 0; axis < 2; axis++)
+        {
+            const float distance = displacement[axis];
+            if (distance == 0.0f)
+                continue;
+
+            glm::vec2 end = result;
+            end[axis] += distance;
+            const glm::vec2 minPoint = glm::min(result, end) - halfSize;
+            const glm::vec2 maxPoint = glm::max(result, end) + halfSize;
+            const uint32_t minX = clampIndex(std::floor((minPoint.x - origin.x) / tileSize), m_Width);
+            const uint32_t maxX = clampIndex(std::ceil((maxPoint.x - origin.x) / tileSize), m_Width);
+            const uint32_t minY = clampIndex(std::floor((minPoint.y - origin.y) / tileSize), m_Height);
+            const uint32_t maxY = clampIndex(std::ceil((maxPoint.y - origin.y) / tileSize), m_Height);
+
+            for (uint32_t y = minY; y < maxY; y++)
+            {
+                for (uint32_t x = minX; x < maxX; x++)
+                {
+                    if (!IsTileSolid(GetTile(x, y)))
+                        continue;
+
+                    const glm::vec2 tileMin = origin + glm::vec2(x, y) * tileSize;
+                    const glm::vec2 tileMax = tileMin + glm::vec2(tileSize);
+                    const int otherAxis = 1 - axis;
+                    if (result[otherAxis] <= tileMin[otherAxis] - halfSize[otherAxis] ||
+                        result[otherAxis] >= tileMax[otherAxis] + halfSize[otherAxis])
+                        continue;
+
+                    if (distance > 0.0f && result[axis] <= tileMin[axis] - halfSize[axis])
+                        end[axis] = std::min(end[axis], tileMin[axis] - halfSize[axis]);
+                    else if (distance < 0.0f && result[axis] >= tileMax[axis] + halfSize[axis])
+                        end[axis] = std::max(end[axis], tileMax[axis] + halfSize[axis]);
+                }
+            }
+
+            result[axis] = end[axis];
+        }
+        return result;
+    }
+
     void Tilemap::Clear()
     {
         Clear(EmptyTile);

@@ -24,6 +24,7 @@ namespace Stellar {
         bool IsVSync() const override { return m_Data.VSync; }
 
         void SetResizeCallback(const ResizeCallbackFn& callback) override { m_Data.ResizeCallback = callback; }
+        void SetScrollCallback(const ScrollCallbackFn& callback) override { m_Data.ScrollCallback = callback; }
 
         double GetTime() const override;
 
@@ -44,6 +45,7 @@ namespace Stellar {
             uint32_t Height = 0;
             bool VSync = true;
             ResizeCallbackFn ResizeCallback;
+            ScrollCallbackFn ScrollCallback;
         };
 
         WindowData m_Data;

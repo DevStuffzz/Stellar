@@ -13,3 +13,7 @@ A 2D Game Engine written in C++
 - `Sandbox` - example client application (WASD moves the player, mouse wheel zooms the camera, Esc quits).
 
 Tilemap collision is opt-in: mark solid atlas IDs with `SetTileCollision(id, true)` and add a `TilemapColliderComponent` to a moving entity. Collision uses an axis-aligned box and an unrotated, unscaled map centered at `MapCenter`; outside the map is non-solid.
+
+Native scripts derive from `ScriptableEntity` and are attached with `entity.AddComponent<NativeScriptComponent>().Bind<MyScript>()`. The scene calls `OnCreate` once before the first `OnUpdate`, updates scripts before movement, and calls `OnDestroy` when a script is removed, its entity is destroyed, or the scene is destroyed. Use `Entity::RemoveComponent` and `Scene::DestroyEntity` rather than the registry directly so script cleanup runs; removals requested from script callbacks are deferred until the callback returns. `OnFixedUpdate` is not scheduled yet.
+
+After generating and building the Debug solution, run `bin\Debug-windows-x86_64\Stellar\NativeScriptTests.exe` to check the native script lifecycle.

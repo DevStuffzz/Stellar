@@ -72,6 +72,34 @@ project "Stellar"
         runtime "Release"
         optimize "On"
 
+project "NativeScriptTests"
+    location "Tests"
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++17"
+    staticruntime "Off"
+    targetdir ("bin/" .. outputdir .. "/Stellar")
+    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+
+    files { "Tests/NativeScriptTests.cpp" }
+    includedirs { "Stellar/src", "Vendor/glm" }
+    links { "Stellar" }
+    disablewarnings { "4251" }
+
+    filter "system:windows"
+        systemversion "latest"
+        defines { "ST_PLATFORM_WINDOWS" }
+
+    filter "configurations:Debug"
+        defines { "ST_DEBUG" }
+        runtime "Debug"
+        symbols "On"
+
+    filter "configurations:Release"
+        defines { "ST_RELEASE" }
+        runtime "Release"
+        optimize "On"
+
 project "Sandbox"
     location "Sandbox"
     kind "ConsoleApp"

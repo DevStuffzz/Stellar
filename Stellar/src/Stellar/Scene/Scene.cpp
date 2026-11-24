@@ -7,8 +7,28 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+#include <vector>
 
 namespace Stellar {
+
+    namespace {
+        struct CallbackScope
+        {
+            unsigned int& Depth;
+            explicit CallbackScope(unsigned int& depth) : Depth(depth) { ++Depth; }
+            ~CallbackScope() { --Depth; }
+        };
+    }
+
+    Scene::~Scene()
+    {
+        std::vector<EntityID> scripts;
+        m_Registry.Each<NativeScriptComponent>(
+            [&scripts](EntityID id, NativeScriptComponent&) { scripts.push_back(id); });
+        for (EntityID id : scripts)
+            RemoveNativeScript(id);
+    }
 
     Entity Scene::CreateEntity(const std::string& name)
     {
@@ -20,16 +40,97 @@ namespace Stellar {
 
     void Scene::DestroyEntity(Entity entity)
     {
-        if (auto* camera = m_Registry.TryGet<OrthographicCameraComponent>(entity.GetID()))
+        if (entity.GetScene() != this || !entity)
+            throw std::invalid_argument("Cannot destroy an invalid entity or an entity from another scene");
+        m_ScriptOperations.push_back({ entity.GetID(), true });
+        ProcessScriptOperations();
+    }
+
+    void Scene::RemoveNativeScript(EntityID entity)
+    {
+        m_ScriptOperations.push_back({ entity, false });
+        ProcessScriptOperations();
+    }
+
+    void Scene::ProcessScriptOperations()
+    {
+        if (m_ScriptCallbackDepth || m_ProcessingScriptOperations)
+            return;
+
+        m_ProcessingScriptOperations = true;
+        struct ProcessingScope
         {
-            if (camera->Primary && camera->Camera == m_MainCamera)
-                m_MainCamera.reset();
+            bool& Processing;
+            ~ProcessingScope() { Processing = false; }
+        } processingScope{ m_ProcessingScriptOperations };
+
+        while (!m_ScriptOperations.empty())
+        {
+            const ScriptOperation operation = m_ScriptOperations.front();
+            m_ScriptOperations.pop_front();
+            if (!m_Registry.Valid(operation.Entity))
+                continue;
+
+            if (auto* script = m_Registry.TryGet<NativeScriptComponent>(operation.Entity))
+            {
+                if (script->Instance)
+                {
+                    CallbackScope callback(m_ScriptCallbackDepth);
+                    script->Instance->OnDestroy();
+                }
+                m_Registry.Remove<NativeScriptComponent>(operation.Entity);
+            }
+
+            if (operation.DestroyEntity)
+            {
+                if (auto* camera = m_Registry.TryGet<OrthographicCameraComponent>(operation.Entity))
+                {
+                    if (camera->Primary && camera->Camera == m_MainCamera)
+                        m_MainCamera.reset();
+                }
+                m_Registry.Destroy(operation.Entity);
+            }
         }
-        m_Registry.Destroy(entity.GetID());
     }
 
     void Scene::OnUpdate(Timestep ts)
     {
+        // Snapshot IDs so callbacks can create or remove scripts safely.
+        std::vector<EntityID> scripts;
+        m_Registry.Each<NativeScriptComponent>(
+            [&scripts](EntityID id, NativeScriptComponent&) { scripts.push_back(id); });
+        for (EntityID id : scripts)
+        {
+            auto* script = m_Registry.TryGet<NativeScriptComponent>(id);
+            if (!script)
+                continue;
+
+            if (!script->Instance)
+            {
+                if (!script->InstantiateScript)
+                    throw std::logic_error("NativeScriptComponent must be bound before updating");
+
+                script->Instance = script->InstantiateScript();
+                if (!script->Instance)
+                    throw std::runtime_error("Native script factory returned null");
+                script->Instance->m_Entity = Entity(id, this);
+                {
+                    CallbackScope callback(m_ScriptCallbackDepth);
+                    script->Instance->OnCreate();
+                }
+                ProcessScriptOperations();
+                script = m_Registry.TryGet<NativeScriptComponent>(id);
+                if (!script || !script->Instance)
+                    continue;
+            }
+
+            {
+                CallbackScope callback(m_ScriptCallbackDepth);
+                script->Instance->OnUpdate(ts);
+            }
+            ProcessScriptOperations();
+        }
+
         // Top-down movement controllers.
         m_Registry.Each<TopDownMovementComponent, TransformComponent>(
             [this, ts](EntityID entity, TopDownMovementComponent& movement, TransformComponent& transform)
@@ -154,6 +255,7 @@ namespace Stellar {
                     m_MainCamera = camera.Camera;
                 }
             });
+
     }
 
     void Scene::OnViewportResize(uint32_t width, uint32_t height)

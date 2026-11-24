@@ -3,12 +3,15 @@
 #include "Core.h"
 #include "Stellar/Scene/Scene.h"
 
+#include <type_traits>
 #include <utility>
 
 namespace Stellar {
 
+    struct NativeScriptComponent;
+
     // Lightweight handle into a Scene's registry; cheap to copy.
-    class Entity
+    class ST_API Entity
     {
     public:
         Entity() = default;
@@ -37,7 +40,10 @@ namespace Stellar {
         template<typename T>
         void RemoveComponent()
         {
-            m_Scene->GetRegistry().Remove<T>(m_ID);
+            if constexpr (std::is_same_v<T, NativeScriptComponent>)
+                m_Scene->RemoveNativeScript(m_ID);
+            else
+                m_Scene->GetRegistry().Remove<T>(m_ID);
         }
 
         EntityID GetID() const { return m_ID; }
@@ -50,6 +56,35 @@ namespace Stellar {
     private:
         EntityID m_ID = NullEntity;
         Scene* m_Scene = nullptr;
+    };
+
+    // Base class for user-defined scripts that can be attached to entities. Scripts are created and destroyed by the Scene.
+    class ST_API ScriptableEntity
+    {
+    public:
+        virtual ~ScriptableEntity() = default;
+
+        template<typename T>
+        T& GetComponent()
+        {
+            return m_Entity.GetComponent<T>();
+        }
+
+        Entity GetEntity() const
+        {
+            return m_Entity;
+        }
+
+        virtual void OnCreate() {}
+        virtual void OnDestroy() {}
+        virtual void OnUpdate(float ts) {}
+        // Reserved for a future fixed-step loop; Scene does not invoke this yet.
+        virtual void OnFixedUpdate(float ts) {}
+
+    private:
+        Entity m_Entity;
+
+        friend class Scene;
     };
 
 }

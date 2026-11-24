@@ -11,6 +11,8 @@
 #include "Stellar/Scene/Entity.h"
 
 #include <string>
+#include <stdexcept>
+#include <type_traits>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -151,5 +153,30 @@ namespace Stellar {
         float MaxZoom = 8.0f;
 
         float ZoomSensitivity = 0.85f;
+    };
+
+    // -----------------------------------------
+    // Scripting Components
+    // -----------------------------------------
+
+    struct NativeScriptComponent
+    {
+        std::unique_ptr<ScriptableEntity> Instance;
+
+        std::unique_ptr<ScriptableEntity>(*InstantiateScript)() = nullptr;
+
+        template<typename T>
+        void Bind()
+        {
+            static_assert(std::is_base_of_v<ScriptableEntity, T>, "Script must derive from ScriptableEntity");
+            if (Instance)
+                throw std::logic_error("Cannot rebind an active native script");
+
+            InstantiateScript = []()
+                -> std::unique_ptr<ScriptableEntity>
+                {
+                    return std::make_unique<T>();
+                };
+        }
     };
 }

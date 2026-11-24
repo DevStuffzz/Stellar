@@ -14,6 +14,7 @@
 
 #include "Stellar/Renderer/Renderer.h"
 #include "Stellar/Renderer/RenderCommand.h"
+#include "Stellar/Renderer/RenderTarget.h"
 #include "Stellar/Renderer/Mesh.h"
 #include "Stellar/Renderer/Shader.h"
 #include "Stellar/Renderer/Texture.h"

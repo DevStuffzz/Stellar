@@ -7,12 +7,14 @@
 #include "Stellar/Renderer/TextureAtlas.h"
 #include "Stellar/Renderer/SpriteAnimation.h"
 #include "Stellar/Renderer/OrthographicCamera.h"
+#include "Stellar/Renderer/RenderTarget.h"
 #include "Stellar/Scene/Tilemap.h"
 #include "Stellar/Scene/Entity.h"
 
 #include <string>
 #include <stdexcept>
 #include <type_traits>
+#include <list>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -71,18 +73,23 @@ namespace Stellar {
         float TileSize = 1.0f;
         glm::vec4 Color = glm::vec4(1.0f);
 
-        const Ref<Mesh>& GetMesh(const OrthographicCamera& camera, const glm::mat4& transform);
+        Ref<Mesh> GetMesh(const OrthographicCamera& camera, const glm::mat4& transform);
 
     private:
-        Ref<Mesh> m_Mesh;
-        Ref<Tilemap> m_CachedMap;
-        Tilemap::Bounds m_CachedBounds;
-        std::vector<int> m_CachedTiles;
-        float m_CachedTileSize = 0.0f;
-        uint32_t m_CachedMapWidth = 0, m_CachedMapHeight = 0;
-        uint32_t m_CachedTextureWidth = 0, m_CachedTextureHeight = 0;
-        uint32_t m_CachedCellWidth = 0, m_CachedCellHeight = 0;
-        bool m_HasCachedMesh = false;
+        struct MeshCache
+        {
+            const OrthographicCamera* Camera = nullptr;
+            Ref<Mesh> Mesh;
+            Ref<Tilemap> Map;
+            Tilemap::Bounds Bounds;
+            std::vector<int> Tiles;
+            float TileSize = 0.0f;
+            uint32_t MapWidth = 0, MapHeight = 0;
+            uint32_t TextureWidth = 0, TextureHeight = 0;
+            uint32_t CellWidth = 0, CellHeight = 0;
+            bool HasMesh = false;
+        };
+        std::list<MeshCache> m_Caches;
     };
 
     // Plays a SpriteAnimation onto the entity's SpriteRendererComponent;
@@ -176,6 +183,41 @@ namespace Stellar {
         float MaxZoom = 8.0f;
 
         float ZoomSensitivity = 0.85f;
+    };
+
+    struct OverlayCameraComponent {
+        enum class Shape { Quad, Circle };
+
+        Ref<OrthographicCamera> Camera = CreateRef<OrthographicCamera>(-1.0f, 1.0f, -1.0f, 1.0f);
+        bool FixedAspectRatio = false;
+        float Zoom = 1.0f;
+        glm::uvec2 Resolution = { 256, 256 };
+        // Top-left position and size as fractions of the screen dimensions.
+        glm::vec2 Position = { 0.75f, 0.05f };
+        glm::vec2 Size = { 0.2f, 0.2f };
+        Shape OverlayShape = Shape::Quad;
+        glm::vec4 Color = glm::vec4(1.0f);
+        glm::vec3 BackgroundColor = { 0.1f, 0.1f, 0.12f };
+        bool ShowOverlay = true;
+        bool Enabled = true;
+
+        void SetScene() { m_SourceScene.reset(); m_HasSourceScene = false; }
+        void SetScene(const Ref<Scene>& scene)
+        {
+            if (!scene)
+                throw std::invalid_argument("Overlay source scene cannot be null");
+            m_SourceScene = scene;
+            m_HasSourceScene = true;
+        }
+
+        // Available after the first capture; reacquire after changing Resolution.
+        Ref<Texture2D> GetTexture() const { return m_Target ? m_Target->GetColorTexture() : nullptr; }
+
+    private:
+        Ref<RenderTarget> m_Target;
+        std::weak_ptr<Scene> m_SourceScene;
+        bool m_HasSourceScene = false;
+        friend class Scene;
     };
 
     // -----------------------------------------

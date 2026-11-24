@@ -12,7 +12,7 @@
 
 namespace Stellar {
 
-    const Ref<Mesh>& TilemapRendererComponent::GetMesh(const OrthographicCamera& camera, const glm::mat4& transform)
+    Ref<Mesh> TilemapRendererComponent::GetMesh(const OrthographicCamera& camera, const glm::mat4& transform)
     {
         if (!Map || !Atlas || !Atlas->GetTexture())
             throw std::invalid_argument("Tilemap renderer requires a map and a textured atlas");
@@ -22,13 +22,26 @@ namespace Stellar {
         if (!std::isfinite(determinant) || determinant == 0.0f)
             throw std::invalid_argument("Tilemap renderer requires an invertible camera and transform");
 
+        auto entry = std::find_if(m_Caches.begin(), m_Caches.end(),
+            [&camera](const MeshCache& cache) { return cache.Camera == &camera; });
+        if (entry == m_Caches.end())
+        {
+            if (m_Caches.size() == 8)
+                m_Caches.pop_back();
+            m_Caches.emplace_front();
+            m_Caches.front().Camera = &camera;
+        }
+        else
+            m_Caches.splice(m_Caches.begin(), m_Caches, entry);
+        MeshCache& cache = m_Caches.front();
+
         const auto bounds = Map->GetVisibleBounds(camera, TileSize, transform);
-        bool changed = !m_HasCachedMesh || Map != m_CachedMap ||
-            !(bounds == m_CachedBounds) || TileSize != m_CachedTileSize ||
-            Map->GetWidth() != m_CachedMapWidth || Map->GetHeight() != m_CachedMapHeight ||
-            Atlas->GetTextureWidth() != m_CachedTextureWidth ||
-            Atlas->GetTextureHeight() != m_CachedTextureHeight ||
-            Atlas->GetCellWidth() != m_CachedCellWidth || Atlas->GetCellHeight() != m_CachedCellHeight;
+        bool changed = !cache.HasMesh || Map != cache.Map ||
+            !(bounds == cache.Bounds) || TileSize != cache.TileSize ||
+            Map->GetWidth() != cache.MapWidth || Map->GetHeight() != cache.MapHeight ||
+            Atlas->GetTextureWidth() != cache.TextureWidth ||
+            Atlas->GetTextureHeight() != cache.TextureHeight ||
+            Atlas->GetCellWidth() != cache.CellWidth || Atlas->GetCellHeight() != cache.CellHeight;
 
         size_t index = 0;
         for (uint32_t y = bounds.MinY; y < bounds.MaxY; ++y)
@@ -39,7 +52,7 @@ namespace Stellar {
                 if (tile < Tilemap::EmptyTile ||
                     (tile != Tilemap::EmptyTile && static_cast<uint32_t>(tile) >= Atlas->GetSubTextureCount()))
                     throw std::invalid_argument("Tilemap contains a tile outside the atlas");
-                if (!changed && tile != m_CachedTiles[index])
+                if (!changed && tile != cache.Tiles[index])
                     changed = true;
                 ++index;
             }
@@ -54,20 +67,20 @@ namespace Stellar {
                     tiles.push_back(Map->GetTile(x, y));
 
             Ref<Mesh> mesh = Map->GenerateMesh(*Atlas, bounds, TileSize);
-            m_Mesh = std::move(mesh);
-            m_CachedMap = Map;
-            m_CachedBounds = bounds;
-            m_CachedTiles = std::move(tiles);
-            m_CachedTileSize = TileSize;
-            m_CachedMapWidth = Map->GetWidth();
-            m_CachedMapHeight = Map->GetHeight();
-            m_CachedTextureWidth = Atlas->GetTextureWidth();
-            m_CachedTextureHeight = Atlas->GetTextureHeight();
-            m_CachedCellWidth = Atlas->GetCellWidth();
-            m_CachedCellHeight = Atlas->GetCellHeight();
-            m_HasCachedMesh = true;
+            cache.Mesh = std::move(mesh);
+            cache.Map = Map;
+            cache.Bounds = bounds;
+            cache.Tiles = std::move(tiles);
+            cache.TileSize = TileSize;
+            cache.MapWidth = Map->GetWidth();
+            cache.MapHeight = Map->GetHeight();
+            cache.TextureWidth = Atlas->GetTextureWidth();
+            cache.TextureHeight = Atlas->GetTextureHeight();
+            cache.CellWidth = Atlas->GetCellWidth();
+            cache.CellHeight = Atlas->GetCellHeight();
+            cache.HasMesh = true;
         }
-        return m_Mesh;
+        return cache.Mesh;
     }
 
     namespace {
@@ -149,6 +162,34 @@ namespace Stellar {
                 m_Registry.Destroy(operation.Entity);
             }
         }
+    }
+
+    bool Scene::UpdateCameraFollow(EntityID entity, TransformComponent& transform, Timestep ts)
+    {
+        auto* follow = m_Registry.TryGet<CameraFollowComponent>(entity);
+        if (!follow)
+            return true;
+
+        ST_ASSERT(follow->Target.GetScene() == this && follow->Target,
+            "Camera follow target must be a valid entity in the same scene!");
+        if (follow->Target.GetScene() != this || !follow->Target)
+            return false;
+
+        ST_ASSERT(follow->Target.HasComponent<TransformComponent>(),
+            "Camera follow target requires a transform!");
+        if (!follow->Target.HasComponent<TransformComponent>())
+            return false;
+
+        const glm::vec2 target = follow->Target.GetComponent<TransformComponent>().Position + follow->Offset;
+        if (follow->Smooth)
+        {
+            ST_ASSERT(follow->SmoothSpeed >= 0.0f, "Camera smooth speed cannot be negative!");
+            const float alpha = 1.0f - std::exp(-std::max(follow->SmoothSpeed, 0.0f) * static_cast<float>(ts));
+            transform.Position += (target - transform.Position) * alpha;
+        }
+        else
+            transform.Position = target;
+        return true;
     }
 
     void Scene::OnUpdate(Timestep ts)
@@ -274,30 +315,8 @@ namespace Stellar {
                 if (!camera.Camera)
                     return;
 
-                if (auto* follow = m_Registry.TryGet<CameraFollowComponent>(entity))
-                {
-                    ST_ASSERT(follow->Target.GetScene() == this && follow->Target,
-                        "Camera follow target must be a valid entity in the same scene!");
-                    if (follow->Target.GetScene() != this || !follow->Target)
-                        return;
-
-                    ST_ASSERT(follow->Target.HasComponent<TransformComponent>(),
-                        "Camera follow target requires a transform!");
-                    if (!follow->Target.HasComponent<TransformComponent>())
-                        return;
-
-                    const glm::vec2 target = follow->Target.GetComponent<TransformComponent>().Position
-                        + follow->Offset;
-                    if (follow->Smooth)
-                    {
-                        ST_ASSERT(follow->SmoothSpeed >= 0.0f, "Camera smooth speed cannot be negative!");
-                        const float alpha = 1.0f - std::exp(-std::max(follow->SmoothSpeed, 0.0f)
-                            * static_cast<float>(ts));
-                        transform.Position += (target - transform.Position) * alpha;
-                    }
-                    else
-                        transform.Position = target;
-                }
+                if (!UpdateCameraFollow(entity, transform, ts))
+                    return;
 
                 camera.Camera->SetPosition({
                     transform.Position.x,
@@ -312,6 +331,20 @@ namespace Stellar {
                     mainCamFound = true;
                     m_MainCamera = camera.Camera;
                 }
+            });
+
+        m_Registry.Each<OverlayCameraComponent, TransformComponent>(
+            [this, ts](EntityID entity, OverlayCameraComponent& camera, TransformComponent& transform)
+            {
+                if (!camera.Enabled)
+                    return;
+                if (!camera.Camera)
+                    throw std::invalid_argument("Overlay camera requires a camera");
+                if (!m_Registry.Has<OrthographicCameraComponent>(entity) &&
+                    !UpdateCameraFollow(entity, transform, ts))
+                    throw std::runtime_error("Overlay camera follow target is invalid");
+                camera.Camera->SetPosition({ transform.Position.x, transform.Position.y, 0.0f });
+                camera.Camera->SetRotation(transform.Rotation);
             });
 
     }
@@ -376,27 +409,122 @@ namespace Stellar {
         if (!m_MainCamera)
             return;
 
-        // Created lazily so a Scene can be constructed before the renderer.
+        m_Registry.Each<OverlayCameraComponent>(
+            [this](EntityID entity, OverlayCameraComponent& overlay)
+            {
+                if (!overlay.Enabled)
+                    return;
+                if (!m_Registry.Has<TransformComponent>(entity))
+                    throw std::invalid_argument("Overlay camera requires a transform");
+                if (!overlay.Camera || !std::isfinite(overlay.Zoom) || overlay.Zoom <= 0.0f ||
+                    overlay.Resolution.x == 0 || overlay.Resolution.y == 0)
+                    throw std::invalid_argument("Overlay camera requires a camera, positive zoom and resolution");
+                if (overlay.Camera == m_MainCamera)
+                    throw std::invalid_argument("Overlay and primary cameras must be distinct");
+                if (!std::isfinite(overlay.BackgroundColor.r) || !std::isfinite(overlay.BackgroundColor.g) ||
+                    !std::isfinite(overlay.BackgroundColor.b))
+                    throw std::invalid_argument("Overlay background color must be finite");
+
+                Ref<Scene> source;
+                if (overlay.m_HasSourceScene)
+                {
+                    source = overlay.m_SourceScene.lock();
+                    if (!source)
+                        throw std::runtime_error("Overlay camera source scene has expired");
+                }
+
+                if (!overlay.m_Target || overlay.m_Target->GetWidth() != overlay.Resolution.x ||
+                    overlay.m_Target->GetHeight() != overlay.Resolution.y)
+                    overlay.m_Target = RenderTarget::Create(overlay.Resolution.x, overlay.Resolution.y);
+
+                const float aspect = overlay.FixedAspectRatio ? 1.0f
+                    : static_cast<float>(overlay.Resolution.x) / static_cast<float>(overlay.Resolution.y);
+                const float halfWidth = aspect * overlay.Zoom;
+                if (!std::isfinite(halfWidth))
+                    throw std::invalid_argument("Overlay camera projection is too large");
+                overlay.Camera->SetProjection(-halfWidth, halfWidth,
+                    -overlay.Zoom, overlay.Zoom);
+                overlay.m_Target->Begin(overlay.BackgroundColor);
+                struct TargetScope
+                {
+                    RenderTarget& Target;
+                    ~TargetScope() { Target.End(); }
+                } targetScope{ *overlay.m_Target };
+                (source ? source.get() : this)->RenderWorld(*overlay.Camera, overlay.m_Target->GetColorTexture());
+            });
+
+        RenderWorld(*m_MainCamera);
+
+        OrthographicCamera screenCamera(0.0f, static_cast<float>(m_ViewportWidth),
+            0.0f, static_cast<float>(m_ViewportHeight));
+        Renderer::BeginScene(screenCamera);
+        m_Registry.Each<OverlayCameraComponent>(
+            [this](EntityID, OverlayCameraComponent& overlay)
+            {
+                if (!overlay.Enabled || !overlay.ShowOverlay)
+                    return;
+                if (!overlay.m_Target)
+                    throw std::logic_error("Overlay camera must have a transform to render");
+                if (!std::isfinite(overlay.Position.x) || !std::isfinite(overlay.Position.y) ||
+                    !std::isfinite(overlay.Size.x) || !std::isfinite(overlay.Size.y) ||
+                    overlay.Size.x <= 0.0f || overlay.Size.y <= 0.0f)
+                    throw std::invalid_argument("Overlay position and size must be finite and size positive");
+
+                glm::vec2 size = overlay.Size * glm::vec2(m_ViewportWidth, m_ViewportHeight);
+                const glm::vec2 center = {
+                    overlay.Position.x * m_ViewportWidth + size.x * 0.5f,
+                    (1.0f - overlay.Position.y) * m_ViewportHeight - size.y * 0.5f
+                };
+                if (!std::isfinite(size.x) || !std::isfinite(size.y) ||
+                    !std::isfinite(center.x) || !std::isfinite(center.y))
+                    throw std::invalid_argument("Overlay screen rectangle is too large");
+                const Ref<Mesh>* mesh = &m_QuadMesh;
+                if (overlay.OverlayShape == OverlayCameraComponent::Shape::Circle)
+                {
+                    if (!m_CircleMesh)
+                        m_CircleMesh = Mesh::CreateCircle(64);
+                    size = glm::vec2(std::min(size.x, size.y));
+                    mesh = &m_CircleMesh;
+                }
+                else if (overlay.OverlayShape != OverlayCameraComponent::Shape::Quad)
+                    throw std::invalid_argument("Unknown overlay shape");
+
+                const glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(center, 0.0f))
+                    * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
+                Renderer::Submit(*mesh, overlay.m_Target->GetColorTexture(), transform, overlay.Color);
+            });
+        Renderer::EndScene();
+    }
+
+    void Scene::RenderWorld(const OrthographicCamera& camera, const Ref<Texture2D>& excludedTexture)
+    {
         if (!m_QuadMesh)
             m_QuadMesh = Mesh::CreateQuad();
 
-        Renderer::BeginScene(*m_MainCamera);
+        Renderer::BeginScene(camera);
 
         m_Registry.Each<TransformComponent>(
-            [this](EntityID entity, TransformComponent& transform)
+            [this, &camera, &excludedTexture](EntityID entity, TransformComponent& transform)
             {
                 const glm::mat4 matrix = transform.GetTransform();
                 if (auto* tilemap = m_Registry.TryGet<TilemapRendererComponent>(entity))
                 {
-                    const Ref<Mesh>& mesh = tilemap->GetMesh(*m_MainCamera, matrix);
-                    if (mesh)
-                        Renderer::Submit(mesh, tilemap->Atlas->GetTexture(), matrix, tilemap->Color);
+                    const bool feedback = excludedTexture && tilemap->Atlas && tilemap->Atlas->GetTexture() &&
+                        *tilemap->Atlas->GetTexture() == *excludedTexture;
+                    if (!feedback)
+                    {
+                        const Ref<Mesh> mesh = tilemap->GetMesh(camera, matrix);
+                        if (mesh)
+                            Renderer::Submit(mesh, tilemap->Atlas->GetTexture(), matrix, tilemap->Color);
+                    }
                 }
 
                 auto* spriteComponent = m_Registry.TryGet<SpriteRendererComponent>(entity);
                 if (!spriteComponent)
                     return;
                 auto& sprite = *spriteComponent;
+                if (excludedTexture && sprite.Texture && *sprite.Texture == *excludedTexture)
+                    return;
                 const Ref<Mesh>& mesh = sprite.Mesh ? sprite.Mesh : m_QuadMesh;
                 if (sprite.Texture)
                 {

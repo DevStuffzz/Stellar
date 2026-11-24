@@ -46,7 +46,7 @@ namespace Stellar {
 
             m_Window->OnUpdate();
         }
-    }
+    } 
 
     void Application::Close()
     {

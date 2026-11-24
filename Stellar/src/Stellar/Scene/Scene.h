@@ -12,7 +12,9 @@
 namespace Stellar {
 
     class Entity;
+    class Texture2D;
     struct OrthographicCameraComponent;
+    struct TransformComponent;
 
     class ST_API Scene
     {
@@ -42,6 +44,8 @@ namespace Stellar {
 
     private:
         void UpdateCameraProjection(OrthographicCameraComponent& camera);
+        bool UpdateCameraFollow(EntityID entity, TransformComponent& transform, Timestep ts);
+        void RenderWorld(const OrthographicCamera& camera, const Ref<Texture2D>& excludedTexture = nullptr);
         void ProcessScriptOperations();
 
         struct ScriptOperation
@@ -52,6 +56,7 @@ namespace Stellar {
 
         Registry m_Registry;
         Ref<Mesh> m_QuadMesh; // lazily created default sprite mesh
+        Ref<Mesh> m_CircleMesh;
         std::deque<ScriptOperation> m_ScriptOperations;
         unsigned int m_ScriptCallbackDepth = 0;
         bool m_ProcessingScriptOperations = false;

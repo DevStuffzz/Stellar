@@ -141,6 +141,15 @@ void SandboxApp::CreateSceneEntities()
 	follow.Smooth = true;
 	m_CameraEntity.AddComponent<Stellar::CameraZoomComponent>();
 
+	auto minimapEntity = m_Scene->CreateEntity("Minimap");
+	auto& minimap = minimapEntity.AddComponent<Stellar::OverlayCameraComponent>();
+	minimap.OverlayShape = Stellar::OverlayCameraComponent::Shape::Circle;
+	minimap.Position = { 0.78f, 0.025f };
+	minimap.Size = { 0.20f, 0.30f };
+	minimap.Resolution = { 256, 256 };
+	minimap.Zoom = 6.0f;
+	minimapEntity.AddComponent<Stellar::CameraFollowComponent>().Target = m_Player;
+
 }
 
 

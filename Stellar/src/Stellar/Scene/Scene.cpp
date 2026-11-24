@@ -5,6 +5,9 @@
 #include "Stellar/Input.h"
 #include "Stellar/Renderer/Renderer.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace Stellar {
 
     Entity Scene::CreateEntity(const std::string& name)
@@ -17,6 +20,11 @@ namespace Stellar {
 
     void Scene::DestroyEntity(Entity entity)
     {
+        if (auto* camera = m_Registry.TryGet<OrthographicCameraComponent>(entity.GetID()))
+        {
+            if (camera->Primary && camera->Camera == m_MainCamera)
+                m_MainCamera.reset();
+        }
         m_Registry.Destroy(entity.GetID());
     }
 
@@ -96,15 +104,123 @@ namespace Stellar {
 
                 sprite.SetSubTexture(*animator.Animation.Atlas, animator.GetCurrentFrame());
             });
+
+        m_MainCamera.reset();
+        bool mainCamFound = false;
+        m_Registry.Each<OrthographicCameraComponent, TransformComponent>(
+            [this, ts, &mainCamFound](EntityID entity, OrthographicCameraComponent& camera,
+                TransformComponent& transform)
+            {
+                ST_ASSERT(camera.Camera, "Camera component requires a camera!");
+                if (!camera.Camera)
+                    return;
+
+                if (auto* follow = m_Registry.TryGet<CameraFollowComponent>(entity))
+                {
+                    ST_ASSERT(follow->Target.GetScene() == this && follow->Target,
+                        "Camera follow target must be a valid entity in the same scene!");
+                    if (follow->Target.GetScene() != this || !follow->Target)
+                        return;
+
+                    ST_ASSERT(follow->Target.HasComponent<TransformComponent>(),
+                        "Camera follow target requires a transform!");
+                    if (!follow->Target.HasComponent<TransformComponent>())
+                        return;
+
+                    const glm::vec2 target = follow->Target.GetComponent<TransformComponent>().Position
+                        + follow->Offset;
+                    if (follow->Smooth)
+                    {
+                        ST_ASSERT(follow->SmoothSpeed >= 0.0f, "Camera smooth speed cannot be negative!");
+                        const float alpha = 1.0f - std::exp(-std::max(follow->SmoothSpeed, 0.0f)
+                            * static_cast<float>(ts));
+                        transform.Position += (target - transform.Position) * alpha;
+                    }
+                    else
+                        transform.Position = target;
+                }
+
+                camera.Camera->SetPosition({
+                    transform.Position.x,
+                    transform.Position.y,
+                    0.0f
+                    });
+                camera.Camera->SetRotation(transform.Rotation);
+                UpdateCameraProjection(camera);
+
+                if (camera.Primary) {
+                    ST_ASSERT(!mainCamFound, "Scene must have exactly one primary camera!");
+                    mainCamFound = true;
+                    m_MainCamera = camera.Camera;
+                }
+            });
     }
 
-    void Scene::OnRender(const OrthographicCamera& camera)
+    void Scene::OnViewportResize(uint32_t width, uint32_t height)
     {
+        if (width == 0 || height == 0)
+            return;
+
+        m_ViewportWidth = width;
+        m_ViewportHeight = height;
+        m_Registry.Each<OrthographicCameraComponent>(
+            [this](EntityID, OrthographicCameraComponent& camera)
+            {
+                UpdateCameraProjection(camera);
+            });
+    }
+
+    void Scene::OnMouseScroll(float, float yOffset)
+    {
+        m_Registry.Each<OrthographicCameraComponent, CameraZoomComponent>(
+            [this, yOffset](EntityID, OrthographicCameraComponent& camera, CameraZoomComponent& zoom)
+            {
+                if (!camera.Primary)
+                    return;
+
+                ST_ASSERT(zoom.MinZoom > 0.0f && zoom.MaxZoom >= zoom.MinZoom,
+                    "Camera zoom limits must be positive and ordered!");
+                ST_ASSERT(zoom.ZoomSensitivity > 0.0f, "Camera zoom sensitivity must be positive!");
+                if (zoom.MinZoom <= 0.0f || zoom.MaxZoom < zoom.MinZoom || zoom.ZoomSensitivity <= 0.0f)
+                    return;
+
+                camera.Zoom = std::clamp(camera.Zoom * std::pow(zoom.ZoomSensitivity, yOffset),
+                    zoom.MinZoom, zoom.MaxZoom);
+                UpdateCameraProjection(camera);
+            });
+    }
+
+    const OrthographicCamera& Scene::GetPrimaryCamera() const
+    {
+        ST_ASSERT(m_MainCamera, "Scene has no primary camera!");
+        return *m_MainCamera;
+    }
+
+    void Scene::UpdateCameraProjection(OrthographicCameraComponent& camera)
+    {
+        ST_ASSERT(camera.Camera, "Camera component requires a camera!");
+        ST_ASSERT(camera.Zoom > 0.0f, "Camera zoom must be positive!");
+        if (!camera.Camera || camera.Zoom <= 0.0f)
+            return;
+
+        const float aspectRatio = camera.FixedAspectRatio
+            ? 1.0f
+            : static_cast<float>(m_ViewportWidth) / static_cast<float>(m_ViewportHeight);
+        camera.Camera->SetProjection(-aspectRatio * camera.Zoom, aspectRatio * camera.Zoom,
+            -camera.Zoom, camera.Zoom);
+    }
+
+    void Scene::OnRender()
+    {
+        ST_ASSERT(m_MainCamera, "Scene has no primary camera!");
+        if (!m_MainCamera)
+            return;
+
         // Created lazily so a Scene can be constructed before the renderer.
         if (!m_QuadMesh)
             m_QuadMesh = Mesh::CreateQuad();
 
-        Renderer::BeginScene(camera);
+        Renderer::BeginScene(*m_MainCamera);
 
         m_Registry.Each<TransformComponent, SpriteRendererComponent>(
             [this](EntityID, TransformComponent& transform, SpriteRendererComponent& sprite)

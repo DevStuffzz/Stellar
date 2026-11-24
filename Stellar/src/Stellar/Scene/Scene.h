@@ -11,6 +11,7 @@
 namespace Stellar {
 
     class Entity;
+    struct OrthographicCameraComponent;
 
     class ST_API Scene
     {
@@ -26,14 +27,25 @@ namespace Stellar {
         // Advances scene systems (e.g. sprite animators).
         void OnUpdate(Timestep ts);
 
+        void OnViewportResize(uint32_t width, uint32_t height);
+        void OnMouseScroll(float xOffset, float yOffset);
+
+        const OrthographicCamera& GetPrimaryCamera() const;
+
         // Draws every entity with Transform + SpriteRenderer in creation order.
-        void OnRender(const OrthographicCamera& camera);
+        void OnRender();
 
         Registry& GetRegistry() { return m_Registry; }
 
     private:
+        void UpdateCameraProjection(OrthographicCameraComponent& camera);
+
         Registry m_Registry;
         Ref<Mesh> m_QuadMesh; // lazily created default sprite mesh
+
+        std::shared_ptr<OrthographicCamera> m_MainCamera;
+        uint32_t m_ViewportWidth = 1;
+        uint32_t m_ViewportHeight = 1;
     };
 
 }

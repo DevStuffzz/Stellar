@@ -11,12 +11,11 @@
 
 
     SandboxApp::SandboxApp()
-        : Stellar::Application(Stellar::WindowProps("Stellar Sandbox", 1280, 720)), m_Camera(-1.0f, 1.0f, -1.0f, 1.0f)
+        : Stellar::Application(Stellar::WindowProps("Stellar Sandbox", 1280, 720))
     {
-        UpdateCameraProjection(GetWindow().GetWidth(), GetWindow().GetHeight());
-
         m_Scene = Stellar::CreateRef<Stellar::Scene>();
         CreateSceneEntities();
+        m_Scene->OnViewportResize(GetWindow().GetWidth(), GetWindow().GetHeight());
     }
 
     SandboxApp::~SandboxApp()
@@ -124,6 +123,16 @@
     movement.IdleUp = idle(0);
     movement.IdleSide = idle(1);
     movement.IdleDown = idle(2);
+
+    m_CameraEntity = m_Scene->CreateEntity("Camera");
+    auto& camera = m_CameraEntity.AddComponent<Stellar::OrthographicCameraComponent>();
+    camera.Camera = Stellar::CreateRef<Stellar::OrthographicCamera>(-1.0f, 1.0f, -1.0f, 1.0f);
+    camera.Zoom = 1.8f;
+    m_CameraEntity.AddComponent<Stellar::CameraFollowComponent>().Target = m_Player;
+    auto& follow = m_CameraEntity.GetComponent<Stellar::CameraFollowComponent>();
+    follow.Smooth = true;
+    m_CameraEntity.AddComponent<Stellar::CameraZoomComponent>();
+    
     }
 
 
@@ -133,45 +142,28 @@
             Close();
 
         m_Scene->OnUpdate(ts);
-        UpdateCameraPosition();
         UpdateTilemapMesh();
 
         Stellar::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.12f, 1.0f });
         Stellar::RenderCommand::Clear();
 
-        m_Scene->OnRender(m_Camera);
+        m_Scene->OnRender();
     }
 
     void SandboxApp::OnWindowResize(uint32_t width, uint32_t height)
     {
-        UpdateCameraProjection(width, height);
+        m_Scene->OnViewportResize(width, height);
     }
 
     void SandboxApp::OnMouseScroll(float xOffset, float yOffset)
     {
-        m_ZoomLevel = std::clamp(m_ZoomLevel * std::pow(0.85f, yOffset), 0.25f, 8.0f);
-        const uint32_t width = GetWindow().GetWidth();
-        const uint32_t height = GetWindow().GetHeight();
-        if (width > 0 && height > 0)
-            UpdateCameraProjection(width, height);
-    }
-
-    void SandboxApp::UpdateCameraProjection(uint32_t width, uint32_t height)
-    {
-        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-        m_Camera.SetProjection(-aspectRatio * m_ZoomLevel, aspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel);
-    }
-
-    void SandboxApp::UpdateCameraPosition()
-    {
-        const auto& playerPosition = m_Player.GetComponent<Stellar::TransformComponent>().Position;
-        m_Camera.SetPosition({ playerPosition.x, playerPosition.y, 0.0f });
+        m_Scene->OnMouseScroll(xOffset, yOffset);
     }
 
     void SandboxApp::UpdateTilemapMesh()
     {
         const auto& transform = m_TilemapEntity.GetComponent<Stellar::TransformComponent>();
-        const auto bounds = m_Tilemap->GetVisibleBounds(m_Camera, tileSize, transform.GetTransform());
+        const auto bounds = m_Tilemap->GetVisibleBounds(m_Scene->GetPrimaryCamera(), tileSize, transform.GetTransform());
         if (m_HasVisibleTileBounds && bounds == m_VisibleTileBounds)
             return;
 

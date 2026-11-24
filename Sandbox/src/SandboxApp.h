@@ -17,19 +17,15 @@
 
     private:
         void CreateSceneEntities();
-        void UpdateCameraProjection(uint32_t width, uint32_t height);
 
-        void UpdateCameraPosition();
         void UpdateTilemapMesh();
 
     private:
-        Stellar::OrthographicCamera m_Camera;
-        float m_ZoomLevel = 1.8f;
-
         Stellar::Ref<Stellar::Scene> m_Scene;
         Stellar::Ref<Stellar::Tilemap> m_Tilemap;
         Stellar::Ref<Stellar::TextureAtlas> m_BlocksAtlas;
         Stellar::Entity m_TilemapEntity;
+        Stellar::Entity m_CameraEntity;
         Stellar::Tilemap::Bounds m_VisibleTileBounds;
         bool m_HasVisibleTileBounds = false;
         Stellar::Entity m_Player;

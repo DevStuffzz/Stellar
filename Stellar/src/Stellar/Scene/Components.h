@@ -6,7 +6,9 @@
 #include "Stellar/Renderer/Texture.h"
 #include "Stellar/Renderer/TextureAtlas.h"
 #include "Stellar/Renderer/SpriteAnimation.h"
+#include "Stellar/Renderer/OrthographicCamera.h"
 #include "Stellar/Scene/Tilemap.h"
+#include "Stellar/Scene/Entity.h"
 
 #include <string>
 
@@ -127,4 +129,27 @@ namespace Stellar {
         bool FacingRight = false;
     };
 
+    struct OrthographicCameraComponent {
+        std::shared_ptr<OrthographicCamera> Camera;
+
+        bool Primary = true; // there should be exactly one primary camera per scene
+        bool FixedAspectRatio = false;
+
+        float Zoom = 1.0f;
+    };
+
+    struct CameraFollowComponent {
+        Entity Target;
+        glm::vec2 Offset = { 0.0f, 0.0f };
+
+        float SmoothSpeed = 5.0f;
+        bool Smooth = false;
+    };
+
+    struct CameraZoomComponent {
+        float MinZoom = 0.25f;
+        float MaxZoom = 8.0f;
+
+        float ZoomSensitivity = 0.85f;
+    };
 }

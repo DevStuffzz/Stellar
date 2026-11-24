@@ -7,6 +7,7 @@
 #include "Stellar/Application.h"
 #include "Stellar/Window.h"
 #include "Stellar/Timestep.h"
+#include "Stellar/Util.h"
 
 #include "Stellar/Input.h"
 #include "Stellar/KeyCodes.h"
@@ -17,6 +18,7 @@
 #include "Stellar/Renderer/Shader.h"
 #include "Stellar/Renderer/Texture.h"
 #include "Stellar/Renderer/TextureAtlas.h"
+#include "Stellar/Renderer/SpriteAnimation.h"
 #include "Stellar/Renderer/Buffer.h"
 #include "Stellar/Renderer/VertexArray.h"
 #include "Stellar/Renderer/OrthographicCamera.h"
@@ -24,3 +26,4 @@
 #include "Stellar/Scene/Scene.h"
 #include "Stellar/Scene/Entity.h"
 #include "Stellar/Scene/Components.h"
+#include "Stellar/Scene/Tilemap.h"

@@ -4,6 +4,7 @@
 #include "Stellar/Scene/Registry.h"
 #include "Stellar/Renderer/Mesh.h"
 #include "Stellar/Renderer/OrthographicCamera.h"
+#include "Stellar/Timestep.h"
 
 #include <string>
 
@@ -21,6 +22,9 @@ namespace Stellar {
         // Creates an entity with a TagComponent and a TransformComponent.
         Entity CreateEntity(const std::string& name = "Entity");
         void DestroyEntity(Entity entity);
+
+        // Advances scene systems (e.g. sprite animators).
+        void OnUpdate(Timestep ts);
 
         // Draws every entity with Transform + SpriteRenderer in creation order.
         void OnRender(const OrthographicCamera& camera);

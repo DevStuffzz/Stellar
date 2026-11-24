@@ -1,9 +1,11 @@
 ﻿#pragma once
 
 #include "Core.h"
+#include "Stellar/KeyCodes.h"
 #include "Stellar/Renderer/Mesh.h"
 #include "Stellar/Renderer/Texture.h"
 #include "Stellar/Renderer/TextureAtlas.h"
+#include "Stellar/Renderer/SpriteAnimation.h"
 
 #include <string>
 
@@ -41,6 +43,10 @@ namespace Stellar {
         glm::vec2 UVOffset = { 0.0f, 0.0f };
         glm::vec2 UVScale = { 1.0f, 1.0f };
 
+        // Mirrors the sprite by flipping its texcoords at render time.
+        bool FlipX = false;
+        bool FlipY = false;
+
         // Points this sprite at a sub-texture of an atlas.
         void SetSubTexture(const TextureAtlas& atlas, uint32_t id)
         {
@@ -49,6 +55,66 @@ namespace Stellar {
             UVOffset = atlas.GetUVOffset(id);
             UVScale = atlas.GetUVScale(id);
         }
+    };
+
+    // Plays a SpriteAnimation onto the entity's SpriteRendererComponent;
+    // advanced by Scene::OnUpdate.
+    struct SpriteAnimatorComponent
+    {
+        SpriteAnimation Animation;
+        float Time = 0.0f;
+        float Speed = 1.0f;
+        bool Playing = true;
+
+        void Play(const SpriteAnimation& animation)
+        {
+            Animation = animation;
+            Time = 0.0f;
+            Playing = true;
+        }
+
+        bool IsFinished() const
+        {
+            return !Animation.Loop && Animation.IsValid() && Time >= Animation.GetDuration();
+        }
+
+        // Atlas sub-texture id of the current frame.
+        uint32_t GetCurrentFrame() const
+        {
+            ST_ASSERT(Animation.IsValid(), "Animator has no valid animation!");
+            size_t frame = static_cast<size_t>(Time / Animation.FrameTime);
+            if (Animation.Loop)
+                frame %= Animation.Frames.size();
+            else
+                frame = frame < Animation.Frames.size() ? frame : Animation.Frames.size() - 1;
+            return Animation.Frames[frame];
+        }
+    };
+
+    // Top-down character controller processed by Scene::OnUpdate: moves the
+    // entity's transform with the bound keys and, when the entity also has a
+    // SpriteAnimator/SpriteRenderer, drives directional walk/idle animations.
+    struct TopDownMovementComponent
+    {
+        float MoveSpeed = 1.5f;
+
+        KeyCode UpKey = KeyCode::W;
+        KeyCode DownKey = KeyCode::S;
+        KeyCode LeftKey = KeyCode::A;
+        KeyCode RightKey = KeyCode::D;
+
+        // Side animations: set SideFacesRight to the direction the art is
+        // authored in; the sprite is mirrored (FlipX) for the other side.
+        // Unset animations are simply skipped.
+        bool SideFacesRight = true;
+        SpriteAnimation WalkUp, WalkDown, WalkSide;
+        SpriteAnimation IdleUp, IdleDown, IdleSide;
+
+        // Runtime state managed by the scene.
+        enum class Direction { Down = 0, Up, Side };
+        Direction Facing = Direction::Down;
+        bool Moving = false;
+        bool FacingRight = false;
     };
 
 }

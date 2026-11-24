@@ -1,113 +1,150 @@
 ﻿#include "SandboxApp.h"
+#include <random>
 
 #include <vector>
 
-using namespace Stellar;
-
-SandboxApp::SandboxApp()
-    : Application(WindowProps("Stellar Sandbox", 1280, 720)), m_Camera(-1.0f, 1.0f, -1.0f, 1.0f)
-{
-    UpdateCameraProjection(GetWindow().GetWidth(), GetWindow().GetHeight());
-
-    m_Scene = CreateRef<Scene>();
-    CreateSceneEntities();
-}
-
-SandboxApp::~SandboxApp()
-{
-}
-
-void SandboxApp::CreateSceneEntities()
-{
-
-    Ref<Texture2D> blocks = Texture2D::Create("assets/textures/atlas/blocks.png");
-    // blocks.png is a 16x16 grid of 16px tiles.
-    Ref<TextureAtlas> blocksAtlas = CreateRef<TextureAtlas>(blocks->GetWidth(), blocks->GetHeight(), 16, 16);
-
-    // Full atlas texture for reference.
-    {
-        Entity quad = m_Scene->CreateEntity("Atlas");
-
-        auto& transform = quad.GetComponent<TransformComponent>();
-        transform.Position = { -0.8f, -0.4f };
-        transform.Scale = { 0.4f, 0.4f };
-
-        quad.AddComponent<SpriteRendererComponent>().Texture = blocks;
+    namespace {
+        constexpr float tileSize = 0.2f;
     }
 
-    // First row of sub-textures, addressed by id (0 = top-left, row-major).
-    for (uint32_t id = 0; id < 8; id++)
+
+    SandboxApp::SandboxApp()
+        : Stellar::Application(Stellar::WindowProps("Stellar Sandbox", 1280, 720)), m_Camera(-1.0f, 1.0f, -1.0f, 1.0f)
     {
-        Entity tile = m_Scene->CreateEntity("SubTexture");
+        UpdateCameraProjection(GetWindow().GetWidth(), GetWindow().GetHeight());
 
-        auto& transform = tile.GetComponent<TransformComponent>();
-        transform.Position = { -0.7f + id * 0.2f, 0.4f };
-        transform.Scale = { 0.19f, 0.19f };
-
-        auto& sprite = tile.AddComponent<SpriteRendererComponent>();
-        sprite.Texture = blocks;
-        sprite.UVOffset = blocksAtlas->GetUVOffset(id);
-        sprite.UVScale = blocksAtlas->GetUVScale(id);
+        m_Scene = Stellar::CreateRef<Stellar::Scene>();
+        CreateSceneEntities();
     }
 
-    // Player: created last so it draws on top; uses a single sub-texture.
+    SandboxApp::~SandboxApp()
+    {
+    }
+
+
+    void SandboxApp::CreateSceneEntities()
+    {
+        Stellar::Ref<Stellar::Texture2D> blocks = Stellar::Texture2D::Create("assets/textures/atlas/blocks.png");
+        m_BlocksAtlas = Stellar::CreateRef<Stellar::TextureAtlas>(blocks, 16, 16);
+
+        const uint32_t mapWidth = 256;
+        const uint32_t mapHeight = 256;
+
+        int grass = 0;
+        int stone = 1;
+        int path = 2;
+        int sand = 16 * 11;
+        int water = 12 * 16 + 14;
+
+        std::vector<int> block_ids = { grass, stone, path, sand, water };
+
+        m_Tilemap = Stellar::CreateRef<Stellar::Tilemap>(mapWidth, mapHeight);
+        for (uint32_t row = 0; row < mapHeight; row++)
+        {
+            for (uint32_t x = 0; x < mapWidth; x++)
+            {
+                m_Tilemap->SetTile(x, row, Stellar::GetRandomInt(block_ids));
+            }
+        }
+
+        m_TilemapEntity = m_Scene->CreateEntity("Tilemap");
+
+    // Player: created last so it draws on top; animated from the characters atlas.
+    Stellar::Ref<Stellar::Texture2D> characters = Stellar::Texture2D::Create("assets/textures/atlas/characters.png");
+    // characters.png uses 18x20 px cells; each character is a 12-column x 3-row
+    // block: row 0 = up/back, row 1 = side (faces left), row 2 = down/front.
+    Stellar::Ref<Stellar::TextureAtlas> charactersAtlas = Stellar::CreateRef<Stellar::TextureAtlas>(characters, 18, 20);
+
+    const uint32_t atlasColumns = charactersAtlas->GetColumns();
+    const uint32_t blockRow = 3, blockColumn = 0; // blonde villager block
+
+    auto frame = [&](uint32_t row, uint32_t column) {
+        return (blockRow + row) * atlasColumns + blockColumn + column;
+    };
+    auto walk = [&](uint32_t row) {
+        // Walk cycle is columns 0-2; ping-pong through the middle stand pose.
+        return Stellar::SpriteAnimation(charactersAtlas,
+            std::vector<uint32_t>{ frame(row, 0), frame(row, 1), frame(row, 2), frame(row, 1) }, 0.15f);
+    };
+    auto idle = [&](uint32_t row) {
+        // Static standing pose.
+        return Stellar::SpriteAnimation(charactersAtlas, std::vector<uint32_t>{ frame(row, 1) });
+    };
+
     m_Player = m_Scene->CreateEntity("Player");
-    m_Player.GetComponent<TransformComponent>().Scale = { 0.25f, 0.25f };
-    auto& playerSprite = m_Player.AddComponent<SpriteRendererComponent>();
-    playerSprite.Texture = blocks;
-    playerSprite.SetSubTexture(*blocksAtlas, 0);
-}
+    m_Player.GetComponent<Stellar::TransformComponent>().Scale = { 0.225f, 0.25f }; // 18:20 aspect
+    m_Player.AddComponent<Stellar::SpriteRendererComponent>();
+    m_Player.AddComponent<Stellar::SpriteAnimatorComponent>();
 
-void SandboxApp::OnUpdate(Timestep ts)
-{
-    if (Input::IsKeyPressed(KeyCode::Escape))
-        Close();
+    auto& movement = m_Player.AddComponent<Stellar::TopDownMovementComponent>();
+    movement.MoveSpeed = 1.5f;
+    movement.WalkUp = walk(0);
+    movement.WalkSide = walk(1);
+    movement.WalkDown = walk(2);
+    movement.IdleUp = idle(0);
+    movement.IdleSide = idle(1);
+    movement.IdleDown = idle(2);
+    }
 
-    // Player movement and rotation.
-    auto& playerTransform = m_Player.GetComponent<TransformComponent>();
 
-    const float moveSpeed = 1.5f * ts;
-    if (Input::IsKeyPressed(KeyCode::A)) playerTransform.Position.x -= moveSpeed;
-    if (Input::IsKeyPressed(KeyCode::D)) playerTransform.Position.x += moveSpeed;
-    if (Input::IsKeyPressed(KeyCode::W)) playerTransform.Position.y += moveSpeed;
-    if (Input::IsKeyPressed(KeyCode::S)) playerTransform.Position.y -= moveSpeed;
+    void SandboxApp::OnUpdate(Stellar::Timestep ts)
+    {
+        if (Stellar::Input::IsKeyPressed(Stellar::KeyCode::Escape))
+            Close();
 
-    const float rotateSpeed = 180.0f * ts;
-    if (Input::IsKeyPressed(KeyCode::Q)) playerTransform.Rotation += rotateSpeed;
-    if (Input::IsKeyPressed(KeyCode::E)) playerTransform.Rotation -= rotateSpeed;
+        m_Scene->OnUpdate(ts);
+        UpdateCameraPosition();
+        UpdateTilemapMesh();
 
-    // Hold the left mouse button to tint the player.
-    m_Player.GetComponent<SpriteRendererComponent>().Color = Input::IsMouseButtonPressed(MouseButton::Left)
-        ? glm::vec4(1.0f, 0.4f, 0.2f, 1.0f)
-        : glm::vec4(0.2f, 0.6f, 1.0f, 1.0f);
+        Stellar::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.12f, 1.0f });
+        Stellar::RenderCommand::Clear();
 
-    // Camera movement.
-    glm::vec3 cameraPosition = m_Camera.GetPosition();
-    const float cameraSpeed = 1.0f * m_ZoomLevel * ts;
-    if (Input::IsKeyPressed(KeyCode::Left))  cameraPosition.x -= cameraSpeed;
-    if (Input::IsKeyPressed(KeyCode::Right)) cameraPosition.x += cameraSpeed;
-    if (Input::IsKeyPressed(KeyCode::Up))    cameraPosition.y += cameraSpeed;
-    if (Input::IsKeyPressed(KeyCode::Down))  cameraPosition.y -= cameraSpeed;
-    m_Camera.SetPosition(cameraPosition);
+        m_Scene->OnRender(m_Camera);
+    }
 
-    RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.12f, 1.0f });
-    RenderCommand::Clear();
+    void SandboxApp::OnWindowResize(uint32_t width, uint32_t height)
+    {
+        UpdateCameraProjection(width, height);
+    }
 
-    m_Scene->OnRender(m_Camera);
-}
+    void SandboxApp::UpdateCameraProjection(uint32_t width, uint32_t height)
+    {
+        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+        m_Camera.SetProjection(-aspectRatio * m_ZoomLevel, aspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel);
+    }
 
-void SandboxApp::OnWindowResize(uint32_t width, uint32_t height)
-{
-    UpdateCameraProjection(width, height);
-}
+    void SandboxApp::UpdateCameraPosition()
+    {
+        const auto& playerPosition = m_Player.GetComponent<Stellar::TransformComponent>().Position;
+        m_Camera.SetPosition({ playerPosition.x, playerPosition.y, 0.0f });
+    }
 
-void SandboxApp::UpdateCameraProjection(uint32_t width, uint32_t height)
-{
-    float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-    m_Camera.SetProjection(-aspectRatio * m_ZoomLevel, aspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel);
-}
+    void SandboxApp::UpdateTilemapMesh()
+    {
+        const auto& transform = m_TilemapEntity.GetComponent<Stellar::TransformComponent>();
+        const auto bounds = m_Tilemap->GetVisibleBounds(m_Camera, tileSize, transform.GetTransform());
+        if (m_HasVisibleTileBounds && bounds == m_VisibleTileBounds)
+            return;
 
-Stellar::Application* Stellar::CreateApplication()
-{
-    return new SandboxApp();
-}
+        auto mesh = m_Tilemap->GenerateMesh(*m_BlocksAtlas, bounds, tileSize);
+        if (mesh)
+        {
+            if (!m_TilemapEntity.HasComponent<Stellar::SpriteRendererComponent>())
+                m_TilemapEntity.AddComponent<Stellar::SpriteRendererComponent>();
+            auto& sprite = m_TilemapEntity.GetComponent<Stellar::SpriteRendererComponent>();
+            sprite.Mesh = mesh;
+            sprite.Texture = m_BlocksAtlas->GetTexture();
+        }
+        else if (m_TilemapEntity.HasComponent<Stellar::SpriteRendererComponent>())
+            m_TilemapEntity.RemoveComponent<Stellar::SpriteRendererComponent>();
+
+        m_VisibleTileBounds = bounds;
+        m_HasVisibleTileBounds = true;
+    }
+
+    Stellar::Application* Stellar::CreateApplication()
+    {
+        return new SandboxApp();
+    }
+
+

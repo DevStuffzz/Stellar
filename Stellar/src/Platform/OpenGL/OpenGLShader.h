@@ -24,6 +24,7 @@ namespace Stellar {
         void SetTextureHandle(const std::string& name, uint64_t handle) override;
 
         const std::string& GetName() const override { return m_Name; }
+        bool IsValid() const { return m_RendererID != 0; }
 
     private:
         int GetUniformLocation(const std::string& name);

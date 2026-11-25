@@ -6,6 +6,8 @@ A 2D Game Engine written in C++
 2. Run `Win-GenProjects.bat` to generate the Visual Studio 2022 solution (uses the bundled `Vendor/bin/premake/premake5.exe`).
 3. Open `Stellar.sln` and build/run the `Sandbox` project. Post-build steps copy `Stellar.dll` and `Sandbox/assets` next to `Sandbox.exe`, which is also the debugger working directory, so load assets with paths like `assets/...`.
 
+Sandbox loads `assets/shaders/basic.glsl` as its 2D shader and falls back to the built-in shader if loading, compilation, or linking fails. The file shader must provide the same vertex inputs and uniforms as the built-in 2D shader.
+
 ## Layout
 - `Stellar/src/Stellar` - platform-agnostic engine API (pure virtual `Window`, `Input`, `GraphicsContext`, `RendererAPI`, `VertexBuffer`, `IndexBuffer`, `VertexArray`, `Shader`) plus `Mesh`, `OrthographicCamera`, and `Renderer`.
 - `Stellar/src/Platform/Windows` - `WindowsWindow` and `WindowsInput` (GLFW).

@@ -15,9 +15,16 @@ namespace {
 SandboxApp::SandboxApp()
 	: Stellar::Application(Stellar::WindowProps("Stellar Sandbox", 1280, 720))
 {
+	Stellar::Ref<Stellar::Shader> basicShader = Stellar::Shader::Load("Basic2D", "assets/shaders/basic.glsl");
+	if (!basicShader)
+		std::fprintf(stderr, "[Sandbox] Using the built-in 2D shader as a fallback\n");
+	Stellar::Renderer::Set2DShader(basicShader);
+
 	m_Scene = Stellar::CreateRef<Stellar::Scene>();
 	CreateSceneEntities();
 	m_Scene->OnViewportResize(GetWindow().GetWidth(), GetWindow().GetHeight());
+
+	std::printf(Stellar::File::ReadText("assets/test.txt").c_str());
 }
 
 SandboxApp::~SandboxApp()
@@ -175,10 +182,3 @@ void SandboxApp::OnMouseScroll(float xOffset, float yOffset)
 {
 	m_Scene->OnMouseScroll(xOffset, yOffset);
 }
-
-Stellar::Application* Stellar::CreateApplication()
-{
-	return new SandboxApp();
-}
-
-

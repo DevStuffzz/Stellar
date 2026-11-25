@@ -1,11 +1,14 @@
 ﻿#include "Stellar/Renderer/Renderer.h"
 
+#include <stdexcept>
+
 namespace Stellar {
 
     struct RendererData
     {
         glm::mat4 ViewProjection = glm::mat4(1.0f);
         Ref<Shader> DefaultShader;
+        Ref<Shader> Shader2D;
         Ref<Texture2D> WhiteTexture;
     };
 
@@ -58,6 +61,9 @@ namespace Stellar {
 
         s_Data = new RendererData();
         s_Data->DefaultShader = Shader::Create("Default2D", s_DefaultVertexSrc, s_DefaultFragmentSrc);
+        if (!s_Data->DefaultShader)
+            throw std::runtime_error("Failed to create the built-in 2D shader");
+        s_Data->Shader2D = s_Data->DefaultShader;
 
         // 1x1 white texture so untextured draws share the textured shader path.
         s_Data->WhiteTexture = Texture2D::Create(1, 1);
@@ -87,6 +93,11 @@ namespace Stellar {
     {
     }
 
+    void Renderer::Set2DShader(const Ref<Shader>& shader)
+    {
+        s_Data->Shader2D = shader ? shader : s_Data->DefaultShader;
+    }
+
     void Renderer::Submit(const Ref<Mesh>& mesh, const glm::mat4& transform, const glm::vec4& color)
     {
         Submit(mesh, s_Data->WhiteTexture, transform, color);
@@ -94,12 +105,12 @@ namespace Stellar {
 
     void Renderer::Submit(const Ref<Mesh>& mesh, const Ref<Texture2D>& texture, const glm::mat4& transform, const glm::vec4& tint, const glm::vec2& uvOffset, const glm::vec2& uvScale)
     {
-        s_Data->DefaultShader->Bind();
-        s_Data->DefaultShader->SetFloat4("u_Color", tint);
-        s_Data->DefaultShader->SetTextureHandle("u_Texture", texture->GetHandle());
-        s_Data->DefaultShader->SetFloat2("u_UVOffset", uvOffset);
-        s_Data->DefaultShader->SetFloat2("u_UVScale", uvScale);
-        Submit(s_Data->DefaultShader, mesh, transform);
+        s_Data->Shader2D->Bind();
+        s_Data->Shader2D->SetFloat4("u_Color", tint);
+        s_Data->Shader2D->SetTextureHandle("u_Texture", texture->GetHandle());
+        s_Data->Shader2D->SetFloat2("u_UVOffset", uvOffset);
+        s_Data->Shader2D->SetFloat2("u_UVScale", uvScale);
+        Submit(s_Data->Shader2D, mesh, transform);
     }
 
     void Renderer::Submit(const Ref<Shader>& shader, const Ref<Mesh>& mesh, const glm::mat4& transform)

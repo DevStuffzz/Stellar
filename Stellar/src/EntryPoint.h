@@ -12,5 +12,6 @@ int main(int argc, char** argv)
     delete app;
     return 0;
 }
-
+#else
+#error Stellar only supports Windows at the moment!
 #endif

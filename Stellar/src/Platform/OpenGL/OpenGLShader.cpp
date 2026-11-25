@@ -28,7 +28,6 @@ namespace Stellar {
             std::fprintf(stderr, "[OpenGL] %s shader compilation failed for '%s':\n%s\n",
                 type == GL_VERTEX_SHADER ? "Vertex" : "Fragment", shaderName.c_str(), log.data());
             glDeleteShader(shader);
-            ST_ASSERT(false, "Shader compilation failure!");
             return 0;
         }
 
@@ -39,7 +38,15 @@ namespace Stellar {
         : m_Name(name)
     {
         GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSrc, name);
+        if (!vertexShader)
+            return;
+
         GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSrc, name);
+        if (!fragmentShader)
+        {
+            glDeleteShader(vertexShader);
+            return;
+        }
 
         GLuint program = glCreateProgram();
         glAttachShader(program, vertexShader);
@@ -59,7 +66,6 @@ namespace Stellar {
             glDeleteProgram(program);
             glDeleteShader(vertexShader);
             glDeleteShader(fragmentShader);
-            ST_ASSERT(false, "Shader link failure!");
             return;
         }
 

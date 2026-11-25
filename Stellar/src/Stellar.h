@@ -7,7 +7,6 @@
 #include "Stellar/Application.h"
 #include "Stellar/Window.h"
 #include "Stellar/Timestep.h"
-#include "Stellar/Util.h"
 
 #include "Stellar/Input.h"
 #include "Stellar/KeyCodes.h"
@@ -28,6 +27,9 @@
 #include "Stellar/Scene/Entity.h"
 #include "Stellar/Scene/Components.h"
 #include "Stellar/Scene/Tilemap.h"
+
+#include "Stellar/Util/Util.h"
+#include "Stellar/Util/FileUtil.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/noise.hpp>

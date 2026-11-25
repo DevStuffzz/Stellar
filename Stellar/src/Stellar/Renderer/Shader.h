@@ -29,7 +29,9 @@ namespace Stellar {
 
         virtual const std::string& GetName() const = 0;
 
+        // Returns null after reporting a shader compilation, link, or file error.
         static Ref<Shader> Create(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc);
+        static Ref<Shader> Load(const std::string& name, const std::string& filename);
     };
 
 }

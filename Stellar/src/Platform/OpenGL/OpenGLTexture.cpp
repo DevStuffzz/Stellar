@@ -6,7 +6,7 @@
 #include <cmath>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "Stellar/Vendor/stb_image.h"
+#include "Vendor/stb_image.h"
 
 namespace Stellar {
 
